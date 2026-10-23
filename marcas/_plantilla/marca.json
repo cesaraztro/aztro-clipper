@@ -1,0 +1,11 @@
+{
+  "id": "_plantilla",
+  "nombre": "Mi marca",
+  "zona_horaria": "America/Mexico_City",
+  "vocabulario": ["Nombre de tu marca", "términos de tu nicho"],
+  "correcciones": {"Como Lo Escribe Whisper": "Como Se Escribe"},
+  "colores": {"texto": "#FFFFFF", "caja": "#0A1A33", "enfasis": "#D9B26A", "acento": "#A5C8FF"},
+  "color": {"lut": null, "vineta": 0.35},
+  "audio": {"lufs": -14.0, "musica": null, "musica_volumen": 0.14},
+  "hashtags": ["#tunicho"]
+}

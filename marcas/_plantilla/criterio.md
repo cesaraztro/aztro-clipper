@@ -1,0 +1,4 @@
+- Audiencia: (a quién le hablas)
+- Prioriza: (qué temas y momentos funcionan en tu cuenta)
+- Evita: (qué nunca debe salir en un clip)
+- Tono: (cómo suena tu marca)

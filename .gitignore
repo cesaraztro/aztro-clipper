@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.pytest_cache/
+# Marcas privadas: solo se versiona la plantilla
+marcas/*
+!marcas/_plantilla/
+# Datos de trabajo (nunca en el repo)
+episodios/

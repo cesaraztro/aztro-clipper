@@ -127,10 +127,8 @@ def test_subtitulos_ass(tmp_path):
 
 
 def test_ruta_filtro_windows_y_espacios():
-    from pathlib import PureWindowsPath
     from clipper import media
     r = media.ruta_filtro(Path("/tmp/AZTROTECH /mis videos, prueba/sub.ass"))
     assert r.startswith("'") and r.endswith("'") and "AZTROTECH /mis videos, prueba" in r
-    assert "\\:" not in r  # en Mac/Linux no hay ':' que escapar
-    s = "C:/Users/a b/sub.ass".replace(":", "\\:")
-    assert s == "C\\:/Users/a b/sub.ass"
+    # todo ':' (p. ej. la unidad C: de Windows) va escapado; sin escapar rompe el filtro de subtítulos
+    assert ":" not in r.replace("\\:", "")

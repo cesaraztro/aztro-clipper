@@ -8,6 +8,7 @@ from clipper.energia import Energia
 from clipper.etapas import cta, diarize, plan, segment, select, sync
 from clipper.media import parsear_info
 from clipper import subtitulos
+from pathlib import Path
 
 SR = 16000
 
@@ -123,3 +124,13 @@ def test_subtitulos_ass(tmp_path):
     assert "CONTEXTO" in (tmp_path / "s_general.ass").read_text(encoding="utf-8")
     assert "por DM" in (tmp_path / "s_tiktok.ass").read_text(encoding="utf-8")
     assert "descripción" in (tmp_path / "s_youtube.ass").read_text(encoding="utf-8")
+
+
+def test_ruta_filtro_windows_y_espacios():
+    from pathlib import PureWindowsPath
+    from clipper import media
+    r = media.ruta_filtro(Path("/tmp/AZTROTECH /mis videos, prueba/sub.ass"))
+    assert r.startswith("'") and r.endswith("'") and "AZTROTECH /mis videos, prueba" in r
+    assert "\\:" not in r  # en Mac/Linux no hay ':' que escapar
+    s = "C:/Users/a b/sub.ass".replace(":", "\\:")
+    assert s == "C\\:/Users/a b/sub.ass"

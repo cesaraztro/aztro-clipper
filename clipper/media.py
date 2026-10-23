@@ -166,9 +166,10 @@ def extraer_audio(src, destino, sr=16000, ss=None, t=None):
 
 
 def ruta_filtro(p):
-    """Escapa una ruta para usarla dentro de un filtro de ffmpeg (espacios, ':' de Windows, comillas)."""
+    """Ruta para un filtro de ffmpeg en cualquier sistema: entre comillas (espacios, comas) y con ':' escapado
+    (la letra de unidad de Windows, C:, rompía el filtro de subtítulos)."""
     s = Path(p).resolve().as_posix()
-    return s.replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'").replace(" ", "\\ ").replace(",", "\\,")
+    return "'" + s.replace("'", "'\\''").replace(":", "\\:") + "'"
 
 
 def medir_loudness(ruta):

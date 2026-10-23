@@ -58,6 +58,8 @@ def voz(destino, ff):
 
 
 def main():
+    for flujo in (sys.stdout, sys.stderr):  # consola de Windows sin UTF-8
+        flujo.reconfigure(encoding="utf-8", errors="replace")
     tmp = Path(tempfile.mkdtemp(prefix="clipper-humo-"))
     env = dict(os.environ, CLIPPER_DATA=str(tmp / "datos"))
     env.setdefault("CLIPPER_MODELO", "tiny")

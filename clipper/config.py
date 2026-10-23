@@ -41,6 +41,8 @@ MARCA_BASE = {
         "tiktok": "Escríbeme {PALABRA} por DM y te lo mando",
         "youtube": "Video completo en la descripción",
         "overlay": "Comenta {PALABRA}",
+        "seguir": ["Sígueme", "PARA MÁS IA", ""],
+        "seguir_copy": "Sígueme para más contenido de IA para negocios 🚀",
         "dur": 3.2,
     },
     "hashtags": [],

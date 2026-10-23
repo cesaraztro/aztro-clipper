@@ -70,7 +70,13 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     if g and g.get("texto"):
         ev.append(f"Dialogue: 1,{ass_t(g['t0'])},{ass_t(g['t0'] + g['dur'])},Gancho,,0,0,0,,"
                   f"{{\\fad(150,250)\\fscx70\\fscy70\\t(0,180,\\fscx104\\fscy104)\\t(180,280,\\fscx100\\fscy100)}}{_escape(g['texto'].upper())}")
-    if cta.get("palabra") and cta.get("dur"):
+    if cta.get("modo") == "seguir" and cta.get("dur"):
+        # sin link largo ni ManyChat: el cierre invita a seguir la cuenta (no promete nada que no se entregue)
+        a, b, c = marca["cta"]["seguir"]
+        txt = f"{{\\fs62}}{_escape(a)}\\N{{\\fs110\\1c{enf}}}{_escape(b)}" + (f"\\N{{\\fs44\\1c{blanco}}}{_escape(c)}" if c else "")
+        ev.append(f"Dialogue: 2,{ass_t(cta['t0'])},{ass_t(clip['dur'] + 0.5)},CTA,,0,0,0,,"
+                  f"{{\\fad(150,0)\\fscx60\\fscy60\\t(0,200,\\fscx106\\fscy106)\\t(200,320,\\fscx100\\fscy100)}}{txt}")
+    elif cta.get("palabra") and cta.get("dur"):
         a, b, c = CTA_TEXTOS.get(red, CTA_TEXTOS["general"])
         p = cta["palabra"]
         linea2 = b.replace("{P}", p)

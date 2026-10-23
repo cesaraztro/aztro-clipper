@@ -10,15 +10,19 @@ def copy_por_red(ep, clip):
     m, p, url = ep.marca, ep.meta.get("palabra_cta") or "PALABRA", ep.meta.get("url_largo")
     tags = " ".join(dict.fromkeys(clip.get("hashtags", []) + m.get("hashtags", [])))
     desc = clip.get("descripcion") or clip["titulo"]
-    cta = {red: m["cta"][red].replace("{PALABRA}", p) for red in ("instagram", "facebook", "tiktok", "youtube")}
-    yt_desc = f"{desc}\n\n▶ Video completo: {url or '[link del video largo]'}\n\n{tags}"
+    seguir = ep.meta.get("cta_modo") == "seguir"
+    cta = {red: (m["cta"]["seguir_copy"] if seguir else m["cta"][red].replace("{PALABRA}", p))
+           for red in ("instagram", "facebook", "tiktok", "youtube")}
+    if seguir:
+        url = None
+    yt_desc = (f"{desc}\n\n▶ Video completo: {url}\n\n{tags}" if url else f"{desc}\n\n👉 {cta['youtube']}\n\n{tags}")
     return {
         "instagram": {"texto": f"{desc}\n\n👉 {cta['instagram']}\n\n{tags}"},
         "facebook": {"texto": f"{desc}\n\n👉 {cta['facebook']}"},
         "tiktok": {"texto": f"{desc} 👉 {cta['tiktok']} {tags}"[:2200]},
         "youtube": {"titulo": clip["titulo"][:100], "texto": yt_desc,
                     "primer_comentario": f"▶ Video completo aquí: {url}" if url else None},
-        "palabra_cta": p, "url_largo": url,
+        "palabra_cta": None if seguir else p, "url_largo": url, "cta_modo": "seguir" if seguir else "palabra",
     }
 
 

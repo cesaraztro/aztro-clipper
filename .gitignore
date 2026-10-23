@@ -6,3 +6,4 @@ __pycache__/
 marcas/
 # Datos de trabajo (nunca en el repo)
 episodios/
+.DS_Store

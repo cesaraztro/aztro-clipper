@@ -207,7 +207,8 @@ def construir_clip(ep, c, ors, todas, en, vel):
                     "punch": pz.get("punch", []), "texto": " ".join(w["w"] for w in pz["palabras"])} for pz in piezas],
         "palabras": salida, "paginas": paginas,
         "gancho_overlay": {"texto": c["gancho"], "t0": 0.0, "dur": min(ep.marca["gancho"]["dur"], total)},
-        "cta": {"palabra": ep.meta.get("palabra_cta"), "t0": round(total - cta_dur, 3), "dur": round(cta_dur, 3)},
+        "cta": {"modo": ep.meta.get("cta_modo", "palabra"), "palabra": ep.meta.get("palabra_cta"),
+                "t0": round(total - cta_dur, 3), "dur": round(cta_dur, 3)},
     }
 
 

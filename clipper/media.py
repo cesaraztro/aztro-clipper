@@ -19,8 +19,11 @@ class ErrorFFmpeg(RuntimeError):
     pass
 
 
+FILTROS_REQUERIDOS = ("subtitles", "zscale", "perspective", "loudnorm", "lut3d", "sidechaincompress", "ebur128")
+
+
 def _candidatos_ffmpeg():
-    """Lugares donde quedan ffmpeg al instalarlo (por si la terminal aún no recarga el PATH)."""
+    """Lugares donde queda ffmpeg al instalarlo (por si la terminal aún no recarga el PATH)."""
     exe = "ffmpeg.exe" if platform.system() == "Windows" else "ffmpeg"
     if os.environ.get("CLIPPER_FFMPEG"):
         yield Path(os.environ["CLIPPER_FFMPEG"])
@@ -35,14 +38,31 @@ def _candidatos_ffmpeg():
         yield Path("C:/ProgramData/chocolatey/bin") / exe
         yield home / "scoop" / "shims" / exe
     else:
+        # Homebrew: la fórmula 'ffmpeg' ya no trae libass/zimg; 'ffmpeg-full' sí (y no se enlaza al PATH)
+        for pre in ("/opt/homebrew", "/usr/local"):
+            yield Path(pre) / "opt" / "ffmpeg-full" / "bin" / exe
         yield from (Path(p) / exe for p in ("/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"))
 
 
 @functools.lru_cache(None)
+def _filtros_de(binario):
+    out = subprocess.run([binario, "-hide_banner", "-filters"], capture_output=True, **TXT).stdout
+    return {m[1] for m in re.finditer(r"^\s*\S+\s+(\w+)\s", out, re.M)}
+
+
+def es_completo(binario):
+    return all(f in _filtros_de(str(binario)) for f in FILTROS_REQUERIDOS)
+
+
+@functools.lru_cache(None)
 def ffmpeg_bin():
-    for c in _candidatos_ffmpeg():
-        if c.exists():
+    """El primer ffmpeg con todos los filtros que usa clipper; si ninguno los tiene, el primero que exista."""
+    vistos = [c for c in dict.fromkeys(_candidatos_ffmpeg()) if c.exists()]
+    for c in vistos:
+        if es_completo(c):
             return str(c)
+    if vistos:
+        return str(vistos[0])
     raise SystemExit("No encuentro ffmpeg. Corre: clipper setup")
 
 

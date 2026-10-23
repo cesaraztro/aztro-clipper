@@ -118,8 +118,8 @@ def test_subtitulos_ass(tmp_path):
             "paginas": [{"t0": 0.0, "t1": 0.9, "palabras": [0, 1]}],
             "gancho_overlay": {"texto": "Gancho", "t0": 0, "dur": 2}, "cta": {"palabra": "CONTEXTO", "t0": 3.0, "dur": 2.0}}
     for red in ("general", "tiktok", "youtube"):
-        txt = subtitulos.escribir(clip, marca, tmp_path / f"s_{red}.ass", red).read_text()
+        txt = subtitulos.escribir(clip, marca, tmp_path / f"s_{red}.ass", red).read_text(encoding="utf-8")
         assert "Style: Sub" in txt and "GANCHO" in txt
-    assert "CONTEXTO" in (tmp_path / "s_general.ass").read_text()
-    assert "por DM" in (tmp_path / "s_tiktok.ass").read_text()
-    assert "descripción" in (tmp_path / "s_youtube.ass").read_text()
+    assert "CONTEXTO" in (tmp_path / "s_general.ass").read_text(encoding="utf-8")
+    assert "por DM" in (tmp_path / "s_tiktok.ass").read_text(encoding="utf-8")
+    assert "descripción" in (tmp_path / "s_youtube.ass").read_text(encoding="utf-8")

@@ -26,39 +26,41 @@ def _correr(cmd):
 
 def instalar_ffmpeg():
     try:
-        media.ffmpeg_bin()
-        print("  ✓ ffmpeg ya está instalado")
-        return True
+        if media.es_completo(media.ffmpeg_bin()):
+            print(f"  ✓ ffmpeg completo: {media.ffmpeg_bin()}")
+            return True
+        print(f"  ffmpeg encontrado ({media.ffmpeg_bin()}) pero le faltan filtros (subtítulos/zscale): instalo el completo…")
     except SystemExit:
-        pass
+        print("  instalando ffmpeg…")
     so = platform.system()
-    print("  instalando ffmpeg…")
-    intentos = []
     if so == "Darwin":
-        intentos = [["brew", "install", "ffmpeg"]]
+        intentos = [["brew", "install", "ffmpeg-full"]]
     elif so == "Windows":
         intentos = [["winget", "install", "--id", "Gyan.FFmpeg", "-e", "--accept-source-agreements", "--accept-package-agreements"],
                     ["choco", "install", "ffmpeg-full", "-y"],
                     ["scoop", "install", "ffmpeg"]]
     else:
-        sudo = [] if shutil.which("id") and subprocess.run(["id", "-u"], capture_output=True, text=True).stdout.strip() == "0" else ["sudo", "-n"]
+        root = shutil.which("id") and subprocess.run(["id", "-u"], capture_output=True, text=True).stdout.strip() == "0"
+        sudo = [] if root else ["sudo", "-n"]
         intentos = [[*sudo, "apt-get", "install", "-y", "ffmpeg"], [*sudo, "dnf", "install", "-y", "ffmpeg"],
                     [*sudo, "pacman", "-S", "--noconfirm", "ffmpeg"]]
     for cmd in intentos:
         exe = cmd[2] if cmd[:2] == ["sudo", "-n"] else cmd[0]
-        if shutil.which(exe) and _correr(cmd):
-            media.ffmpeg_bin.cache_clear()
-            try:
-                media.ffmpeg_bin()
-                print("  ✓ ffmpeg instalado")
-                return True
-            except SystemExit:
-                print("  ffmpeg se instaló pero esta terminal aún no lo ve: ciérrala, ábrela y corre de nuevo `clipper setup`.")
-                return False
-    ayuda = {"Darwin": "instala Homebrew (https://brew.sh) y corre: brew install ffmpeg",
+        if not shutil.which(exe) or not _correr(cmd):
+            continue
+        media.ffmpeg_bin.cache_clear(); media._listado.cache_clear()
+        try:
+            ff = media.ffmpeg_bin()
+        except SystemExit:
+            print("  ffmpeg se instaló pero esta terminal aún no lo ve: ciérrala, ábrela y corre de nuevo `clipper setup`.")
+            return False
+        if media.es_completo(ff):
+            print(f"  ✓ ffmpeg completo instalado: {ff}")
+            return True
+    ayuda = {"Darwin": "instala Homebrew (https://brew.sh) y corre: brew install ffmpeg-full",
              "Windows": "corre en PowerShell: winget install Gyan.FFmpeg",
-             "Linux": "corre: sudo apt-get install -y ffmpeg"}.get(so, "instala ffmpeg")
-    print(f"  ✗ no pude instalar ffmpeg automáticamente → {ayuda}")
+             "Linux": "corre: sudo apt-get install -y ffmpeg"}.get(so, "instala ffmpeg con libass y zimg")
+    print(f"  ✗ no pude dejar un ffmpeg completo automáticamente → {ayuda}")
     return False
 
 

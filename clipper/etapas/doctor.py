@@ -23,8 +23,9 @@ def correr():
         ff = None
     check("ffmpeg instalado", ff, "corre: clipper setup")
     if ff:
-        for f in ("subtitles", "zscale", "perspective", "loudnorm", "lut3d", "sidechaincompress", "ebur128"):
-            check(f"ffmpeg con filtro {f}", media.tiene_filtro(f), "instala un build 'full' de ffmpeg")
+        print(f"    usando {ff}")
+        for f in media.FILTROS_REQUERIDOS:
+            check(f"ffmpeg con filtro {f}", media.tiene_filtro(f), "corre: clipper setup (instala el ffmpeg completo)")
         enc = media.encoder_elegido()
         check(f"codificador H.264 que funciona ({enc})", media.funciona_encoder(enc), "instala un build 'full' de ffmpeg")
     for mod in ("numpy", "cv2"):

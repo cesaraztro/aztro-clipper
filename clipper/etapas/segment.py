@@ -89,6 +89,6 @@ def correr(ep):
         aviso = f" ⚠{','.join(o['alertas'])}" if o["alertas"] else ""
         lineas.append(f"{o['id']} [{hhmmss(o['t0'])}–{hhmmss(o['t1'])}] {o['texto']}{aviso}")
     md = ep.ruta("04_segment", "transcripcion.md")
-    md.write_text("\n".join(lineas) + "\n")
+    md.write_text("\n".join(lineas) + "\n", encoding="utf-8")
     print(f"  {len(ors)} oraciones → {md}")
     return md

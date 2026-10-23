@@ -8,6 +8,7 @@ import json
 import os
 import re
 import urllib.request
+from pathlib import Path
 
 from .. import config
 from ..energia import Energia
@@ -27,10 +28,10 @@ def parse_ref(ref):
 
 
 def instrucciones(ep):
-    plantilla = (config.REPO / "prompts" / "seleccion.md").read_text()
+    plantilla = (config.PROMPTS / "seleccion.md").read_text(encoding="utf-8")
     m = ep.marca
-    criterio_p = config.MARCAS / m["id"] / "criterio.md"
-    criterio = criterio_p.read_text() if criterio_p.exists() else "(sin criterio específico de marca)"
+    criterio_p = Path(m["_dir"]) / "criterio.md"
+    criterio = criterio_p.read_text(encoding="utf-8") if criterio_p.exists() else "(sin criterio específico de marca)"
     horas = ep.meta["dur"] / 3600
     lo, hi = m["seleccion"]["clips_por_hora"]
     txt = (plantilla.replace("{{MARCA}}", m["nombre"])
@@ -44,7 +45,7 @@ def instrucciones(ep):
            .replace("{{SALIDA}}", str(ep.ruta("05_select", "seleccion.json"))))
     d = ep.ruta("05_select", "INSTRUCCIONES.md")
     d.parent.mkdir(parents=True, exist_ok=True)
-    d.write_text(txt)
+    d.write_text(txt, encoding="utf-8")
     return d
 
 
@@ -155,8 +156,8 @@ def con_llm(ep):
     base, key, modelo = os.environ.get("LLM_BASE_URL"), os.environ.get("LLM_API_KEY"), os.environ.get("LLM_MODEL")
     if not (base and modelo):
         raise SystemExit("Configura LLM_BASE_URL, LLM_MODEL (y LLM_API_KEY) en .env para el modo sin agente.")
-    ins = instrucciones(ep).read_text()
-    trans = ep.ruta("04_segment", "transcripcion.md").read_text()
+    ins = instrucciones(ep).read_text(encoding="utf-8")
+    trans = ep.ruta("04_segment", "transcripcion.md").read_text(encoding="utf-8")
     body = {"model": modelo, "temperature": 0.3, "response_format": {"type": "json_object"},
             "messages": [{"role": "system", "content": ins}, {"role": "user", "content": trans}]}
     req = urllib.request.Request(base.rstrip("/") + "/chat/completions", data=json.dumps(body).encode(),

@@ -78,7 +78,7 @@ def correr(videos, marca, slug=None, audio=None, guion=None, hablantes=None, url
             media.extraer_audio(fuentes[0]["ruta"], wav)
         else:
             lista = a_dir / "lista.txt"
-            lista.write_text("".join(f"file '{Path(f['ruta']).as_posix()}'\n" for f in fuentes))
+            lista.write_text("".join(f"file '{Path(f['ruta']).as_posix()}'\n" for f in fuentes), encoding="utf-8")
             media.correr([media.ffmpeg_bin(), "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", lista,
                           "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", wav])
     vista = a_dir / "vista.jpg"

@@ -44,5 +44,5 @@ def correr(ep, solo=None):
         md = [f"# {clip['titulo']}", f"Clip {clip['id']} · {clip['dur']:.0f}s · score {clip.get('viral_score')} · QA {'OK' if qa.get('ok') else 'PENDIENTE'}", ""]
         for red in ("instagram", "facebook", "tiktok", "youtube"):
             md += [f"## {red.capitalize()}", cp_red[red].get("titulo", "") or "", cp_red[red]["texto"], ""]
-        (destino / "copy.md").write_text("\n".join(md))
+        (destino / "copy.md").write_text("\n".join(md), encoding="utf-8")
         print(f"  clip {clip['id']}: {destino}")

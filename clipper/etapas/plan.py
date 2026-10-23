@@ -45,10 +45,10 @@ def piezas_de(palabras, todas, en, mj, dur_src):
                 a_ = min(cands, key=lambda t: (round(en.nivel(t)), -t)) + 0.05
         b_ = en.fin(w1["t1"], min(next_t0 - 0.02, w1["t1"] + 0.45))
         s0 = max(0.0, a_ - 0.05)
-        s1 = min(dur_src, b_ + (0.45 if k == len(piezas) - 1 else 0.08))
-        if k < len(piezas) - 1:  # nunca cerrar cuando ya arranca otro sonido
-            while s1 - 0.01 > w1["t1"] and max(en.nivel(s1 - x * 0.01) for x in range(3)) >= en.umbral:
-                s1 = round(s1 - 0.01, 2)
+        # el último tramo deja una cola para que el clip no termine en seco, pero nunca entra a la palabra siguiente
+        s1 = min(dur_src, b_ + (0.45 if k == len(piezas) - 1 else 0.08), next_t0 - 0.06)
+        while s1 - 0.01 > w1["t1"] and max(en.nivel(s1 - x * 0.01) for x in range(3)) >= en.umbral:
+            s1 = round(s1 - 0.01, 2)  # nunca cerrar cuando ya arranca otro sonido
         out.append({"palabras": ws, "s0": s0, "s1": s1})
     return out
 

@@ -38,17 +38,18 @@ def hoja_contacto(video, destino, dur):
     n = 12
     paso = max(0.5, dur / n)
     media.correr([media.ffmpeg_bin(), "-y", "-v", "error", "-i", str(video), "-vf",
-                  f"fps=1/{paso:.3f},scale=270:-2,drawtext=text='%{{pts\\:hms}}':x=8:y=8:fontsize=18:fontcolor=white:box=1:boxcolor=black@0.5,tile=6x2",
+                  f"fps=1/{paso:.3f},scale=270:-2,drawtext=fontfile={media.ruta_filtro(config.FUENTES / 'poppins-600.ttf')}:"
+                  f"text='%{{pts\\:hms}}':x=8:y=8:fontsize=18:fontcolor=white:box=1:boxcolor=black@0.5,tile=6x2",
                   "-frames:v", "1", str(destino)])
 
 
-def revisar(ep, clip, cdir, en, rapido=False):
+def revisar(ep, clip, cdir, en, rapido=False, palabras_src=()):
     m = ep.marca
     video = cdir / "video_general.mp4"
     fallas, avisos, datos = [], [], {}
     if not video.exists():
         return {"ok": False, "fallas": ["no hay render"], "avisos": [], "datos": {}}
-    info_txt = subprocess.run([media.ffmpeg_bin(), "-hide_banner", "-i", str(video)], capture_output=True, text=True).stderr
+    info_txt = subprocess.run([media.ffmpeg_bin(), "-hide_banner", "-i", str(video)], capture_output=True, **media.TXT).stderr
     info = media.parsear_info(info_txt)
     datos.update(dur=info["dur"], ancho=info["w"], alto=info["h"], codec=info["vcodec"], mb=round(video.stat().st_size / 1e6, 1))
     if info["vcodec"] != "h264" or "yuv420p" not in info_txt or info["hdr"]:
@@ -66,20 +67,29 @@ def revisar(ep, clip, cdir, en, rapido=False):
         fallas.append(f"volumen {lufs} LUFS (meta {m['audio']['lufs']}±1.5)")
     if pico is not None and pico > -0.5:
         fallas.append(f"pico de audio {pico} dBFS (satura)")
-    # cortes: cada entrada y salida de tramo debe caer en silencio real del audio original
-    malos = []
+    # cortes: ninguna entrada o salida puede caer dentro de una palabra (eso es "cortar a media palabra");
+    # un corte en silencio con algo de ruido o respiración solo se avisa
+    a_media, con_sonido = [], []
     for k, pz in enumerate(clip["piezas"]):
         for t, lado in ((pz["s0"], "entrada"), (pz["s1"], "salida")):
-            if en.nivel(t) > en.umbral + 6:
-                malos.append(f"tramo {k + 1} {lado} ({en.nivel(t):.0f} dB)")
-    datos["cortes_en_silencio"] = round(1 - len(malos) / (2 * len(clip["piezas"])), 3)
-    if datos["cortes_en_silencio"] < 0.9:
-        fallas.append(f"cortes sobre voz: {', '.join(malos[:5])}")
-    elif malos:
-        avisos.append(f"{len(malos)} corte(s) con algo de sonido: {', '.join(malos[:3])}")
+            # Whisper estira las palabras hacia el silencio vecino: solo cuenta como "a media palabra" si además
+            # en ese instante hay voz audible (el corte se oiría)
+            nivel = max(en.nivel(t + d) for d in (-0.02, 0.0, 0.02))
+            w = next((w for w in palabras_src if w["t0"] + 0.06 < t < w["t1"] - 0.06), None)
+            if nivel >= en.fuerte - 4 or (w is not None and nivel > en.umbral + 6):
+                a_media.append(f"tramo {k + 1} {lado}" + (f" en «{w['w']}»" if w else "") + f" ({nivel:.0f} dB)")
+            elif nivel > en.umbral + 6:
+                con_sonido.append(f"tramo {k + 1} {lado} ({en.nivel(t):.0f} dB)")
+    n_cortes = 2 * len(clip["piezas"])
+    datos["cortes_en_silencio"] = round(1 - (len(a_media) + len(con_sonido)) / n_cortes, 3)
+    datos["cortes_a_media_palabra"] = len(a_media)
+    if a_media:
+        fallas.append(f"cortes a media palabra: {', '.join(a_media[:5])}")
+    if con_sonido:
+        avisos.append(f"{len(con_sonido)} corte(s) con algo de sonido (sin cortar palabra): {', '.join(con_sonido[:3])}")
     neg = subprocess.run([media.ffmpeg_bin(), "-hide_banner", "-i", str(video), "-vf",
                           "blackdetect=d=0.4:pix_th=0.08,freezedetect=n=0.002:d=1.5", "-an", "-f", "null", "-"],
-                         capture_output=True, text=True).stderr
+                         capture_output=True, **media.TXT).stderr
     if "black_start" in neg:
         fallas.append("hay cuadros negros")
     if "freeze_start" in neg:
@@ -103,17 +113,18 @@ def revisar(ep, clip, cdir, en, rapido=False):
 
 def correr(ep, solo=None, rapido=False):
     en = Energia(ep.ruta("00_ingest", "voz16k.wav"))
+    palabras_src = [w for o in config.leer(ep.ruta("04_segment", "oraciones.json")) for w in o["palabras"]]
     todo_ok = True
     for cp in ep.clips():
         clip = config.leer(cp)
         if solo and clip["id"] not in solo:
             continue
-        res = revisar(ep, clip, cp.parent, en, rapido)
+        res = revisar(ep, clip, cp.parent, en, rapido, palabras_src)
         config.escribir(cp.parent / "qa.json", res)
         todo_ok &= res["ok"]
         d = res["datos"]
         print(f"  clip {clip['id']}: {'OK' if res['ok'] else 'FALLA'} · {d.get('dur', 0):.1f}s · {d.get('lufs')} LUFS · "
-              f"cortes en silencio {d.get('cortes_en_silencio', 0):.0%} · similitud {d.get('similitud', '-')} · {d.get('mb')} MB")
+              f"cortes en silencio {d.get('cortes_en_silencio', 0):.0%} · a media palabra {d.get('cortes_a_media_palabra', '-')} · similitud {d.get('similitud', '-')} · {d.get('mb')} MB")
         for f in res["fallas"]:
             print(f"     ✗ {f}")
         for a in res["avisos"]:

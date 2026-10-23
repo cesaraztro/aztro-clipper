@@ -15,6 +15,28 @@ def cmd_doctor(a):
     sys.exit(doctor.correr())
 
 
+def cmd_setup(a):
+    from .etapas import setup
+    sys.exit(setup.correr(sin_ffmpeg=a.sin_ffmpeg, sin_skills=a.sin_skills, modelos=a.modelos,
+                          marca=a.marca, nombre=a.nombre))
+
+
+def cmd_marca(a):
+    d = config.crear_marca(a.id, a.nombre)
+    print(f"Marca lista en {d}\nEdita marca.json (colores, vocabulario, CTA, música) y criterio.md (qué temas funcionan).")
+
+
+def cmd_actualizar(a):
+    import subprocess
+    if not (config.REPO / ".git").exists():
+        raise SystemExit("Esta instalación no viene de git. Reinstala siguiendo INSTALAR.md.")
+    subprocess.run(["git", "-C", str(config.REPO), "pull", "--ff-only"], check=True)
+    subprocess.run(["uv", "tool", "install", "--python", "3.12", "--force", "-e", str(config.REPO)], check=True)
+    from .etapas import setup
+    setup.instalar_skills()
+    print("aztro-clipper actualizado.")
+
+
 def cmd_ingest(a):
     from .etapas import ingest
     ingest.correr(a.videos, a.marca, slug=a.slug, audio=a.audio, guion=a.guion, hablantes=a.hablantes,
@@ -112,7 +134,15 @@ def main(argv=None):
     p = argparse.ArgumentParser(prog="clipper", description="De un video largo a clips verticales con CTA.")
     sub = p.add_subparsers(dest="cmd", required=True)
 
+    s = sub.add_parser("setup", help="Instala lo que falte (ffmpeg, skills de agentes, modelos) en Mac, Windows o Linux")
+    s.add_argument("--sin-ffmpeg", action="store_true"); s.add_argument("--sin-skills", action="store_true")
+    s.add_argument("--modelos", action="store_true", help="Descarga ya el modelo de transcripción (~1.5 GB)")
+    s.add_argument("--marca", help="Crea una marca con este id"); s.add_argument("--nombre", help="Nombre visible de la marca")
+    s.set_defaults(f=cmd_setup)
     s = sub.add_parser("doctor", help="Verifica la instalación"); s.set_defaults(f=cmd_doctor)
+    s = sub.add_parser("marca", help="Crea una marca nueva desde la plantilla")
+    s.add_argument("id"); s.add_argument("--nombre"); s.set_defaults(f=cmd_marca)
+    s = sub.add_parser("actualizar", help="Baja la última versión del repo"); s.set_defaults(f=cmd_actualizar)
 
     s = sub.add_parser("ingest", help="Registra un video largo (o crudos de cámara) como episodio")
     s.add_argument("videos", nargs="+"); s.add_argument("--marca", required=True); s.add_argument("--slug")
@@ -146,6 +176,11 @@ def main(argv=None):
     s.add_argument("--mejores-horas", help="JSON con mejores horas por red (de Metricool)")
     s = ep_cmd("run", "Corre todas las etapas pendientes", cmd_run); s.add_argument("--forzar", action="store_true")
 
+    for flujo in (sys.stdout, sys.stderr):  # la consola de Windows no siempre es UTF-8 (✓, ✗, acentos)
+        try:
+            flujo.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
     a = p.parse_args(argv)
     try:
         a.f(a)

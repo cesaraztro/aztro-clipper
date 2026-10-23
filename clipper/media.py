@@ -1,10 +1,13 @@
 """Utilidades de FFmpeg portables (Mac y Windows): sondeo, aceleración por hardware y codificadores."""
 import functools
+import os
 import platform
 import re
 import shutil
 import subprocess
 from pathlib import Path
+
+TXT = {"text": True, "encoding": "utf-8", "errors": "replace"}  # Windows no usa UTF-8 por defecto
 
 TONEMAP = ("zscale=tin=arib-std-b67:min=bt2020nc:pin=bt2020:rin=tv:t=linear:npl=203,format=gbrpf32le,"
            "zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv")
@@ -16,15 +19,35 @@ class ErrorFFmpeg(RuntimeError):
     pass
 
 
+def _candidatos_ffmpeg():
+    """Lugares donde quedan ffmpeg al instalarlo (por si la terminal aún no recarga el PATH)."""
+    exe = "ffmpeg.exe" if platform.system() == "Windows" else "ffmpeg"
+    if os.environ.get("CLIPPER_FFMPEG"):
+        yield Path(os.environ["CLIPPER_FFMPEG"])
+    w = shutil.which("ffmpeg")
+    if w:
+        yield Path(w)
+    home = Path.home()
+    if platform.system() == "Windows":
+        local = Path(os.environ.get("LOCALAPPDATA", home / "AppData" / "Local"))
+        yield local / "Microsoft" / "WinGet" / "Links" / exe
+        yield from (local / "Microsoft" / "WinGet" / "Packages").glob(f"Gyan.FFmpeg*/*/bin/{exe}")
+        yield Path("C:/ProgramData/chocolatey/bin") / exe
+        yield home / "scoop" / "shims" / exe
+    else:
+        yield from (Path(p) / exe for p in ("/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"))
+
+
+@functools.lru_cache(None)
 def ffmpeg_bin():
-    b = shutil.which("ffmpeg")
-    if not b:
-        raise SystemExit("No encuentro ffmpeg. Corre el instalador o: brew install ffmpeg / winget install Gyan.FFmpeg")
-    return b
+    for c in _candidatos_ffmpeg():
+        if c.exists():
+            return str(c)
+    raise SystemExit("No encuentro ffmpeg. Corre: clipper setup")
 
 
 def correr(cmd, **kw):
-    r = subprocess.run([str(c) for c in cmd], capture_output=True, text=True, **kw)
+    r = subprocess.run([str(c) for c in cmd], capture_output=True, **TXT, **kw)
     if r.returncode != 0:
         raise ErrorFFmpeg(f"Falló {Path(str(cmd[0])).name} (código {r.returncode}):\n{r.stderr[-2500:]}")
     return r
@@ -36,7 +59,7 @@ def es_mac_arm():
 
 @functools.lru_cache(None)
 def _listado(tipo):
-    return subprocess.run([ffmpeg_bin(), "-hide_banner", f"-{tipo}"], capture_output=True, text=True).stdout
+    return subprocess.run([ffmpeg_bin(), "-hide_banner", f"-{tipo}"], capture_output=True, **TXT).stdout
 
 
 def tiene_filtro(nombre):
@@ -56,24 +79,40 @@ def hwaccel():
     return []
 
 
+@functools.lru_cache(None)
+def funciona_encoder(nombre):
+    """Que ffmpeg liste un codificador no garantiza que haya hardware (p. ej. nvenc sin tarjeta NVIDIA): se prueba."""
+    if not tiene_encoder(nombre):
+        return False
+    r = subprocess.run([ffmpeg_bin(), "-v", "error", "-f", "lavfi", "-i", "color=c=gray:s=256x256:d=0.2",
+                        "-c:v", nombre, "-pix_fmt", "yuv420p", "-f", "null", "-"], capture_output=True, **TXT)
+    return r.returncode == 0
+
+
+def encoder_elegido():
+    forzado = os.environ.get("CLIPPER_ENCODER")
+    if forzado:
+        return forzado
+    for e in ("h264_videotoolbox", "h264_nvenc", "h264_qsv", "h264_amf"):
+        if funciona_encoder(e):
+            return e
+    return "libx264"
+
+
 def encoder_h264(bitrate="8M", intermedio=False):
-    """H.264 SDR: lo único que Metricool publica en automático. Elige el codificador por hardware disponible."""
+    """H.264 SDR: lo único que Metricool publica en automático. Usa la GPU que de verdad funcione."""
     br = "20M" if intermedio else bitrate
-    if tiene_encoder("h264_videotoolbox"):
-        return ["-c:v", "h264_videotoolbox", "-b:v", br, "-profile:v", "high"]
-    if tiene_encoder("h264_nvenc"):
-        return ["-c:v", "h264_nvenc", "-preset", "p5", "-b:v", br, "-profile:v", "high"]
-    if tiene_encoder("h264_qsv"):
-        return ["-c:v", "h264_qsv", "-b:v", br, "-profile:v", "high"]
-    if tiene_encoder("h264_amf"):
-        return ["-c:v", "h264_amf", "-b:v", br, "-profile:v", "high"]
-    crf = "16" if intermedio else "20"
-    return ["-c:v", "libx264", "-preset", "faster", "-crf", crf, "-maxrate", br, "-bufsize", "16M", "-profile:v", "high"]
+    e = encoder_elegido()
+    if e == "libx264":
+        crf = "16" if intermedio else "20"
+        return ["-c:v", "libx264", "-preset", "faster", "-crf", crf, "-maxrate", br, "-bufsize", "16M", "-profile:v", "high"]
+    extra = ["-preset", "p5"] if e == "h264_nvenc" else []
+    return ["-c:v", e, *extra, "-b:v", br, "-profile:v", "high"]
 
 
 def sondear(ruta):
     """Duración, tamaño visible (ya rotado), fps, HDR y audio. Funciona sin ffprobe (solo con ffmpeg)."""
-    err = subprocess.run([ffmpeg_bin(), "-hide_banner", "-i", str(ruta)], capture_output=True, text=True).stderr
+    err = subprocess.run([ffmpeg_bin(), "-hide_banner", "-i", str(ruta)], capture_output=True, **TXT).stderr
     return parsear_info(err)
 
 
@@ -114,7 +153,7 @@ def ruta_filtro(p):
 
 def medir_loudness(ruta):
     err = subprocess.run([ffmpeg_bin(), "-hide_banner", "-nostats", "-i", str(ruta), "-af", "ebur128=peak=true",
-                          "-f", "null", "-"], capture_output=True, text=True).stderr
+                          "-f", "null", "-"], capture_output=True, **TXT).stderr
     resumen = err[err.rfind("Summary:"):]
     i = re.search(r"I:\s*(-?[\d.]+) LUFS", resumen)
     pk = re.search(r"Peak:\s*(-?[\d.]+) dBFS", resumen)

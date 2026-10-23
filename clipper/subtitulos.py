@@ -79,5 +79,5 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         t0 = cta["t0"]
         ev.append(f"Dialogue: 2,{ass_t(t0)},{ass_t(clip['dur'] + 0.5)},CTA,,0,0,0,,"
                   f"{{\\fad(150,0)\\fscx60\\fscy60\\t(0,200,\\fscx106\\fscy106)\\t(200,320,\\fscx100\\fscy100)}}{txt}")
-    Path(ruta).write_text(head + "\n".join(ev) + "\n")
+    Path(ruta).write_text(head + "\n".join(ev) + "\n", encoding="utf-8")
     return ruta

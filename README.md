@@ -9,52 +9,48 @@ De un video largo (podcast, entrevista, clase) a clips verticales listos para Ti
 - control de calidad;
 - copy para Metricool y checklist de ManyChat.
 
-Funciona en **Mac (Apple Silicon)** y **Windows**. Se opera desde un agente (Claude Code, Codex u OpenCode) o
+Funciona en **Mac**, **Windows** y **Linux**. Se opera desde un agente (Claude Code, Codex u OpenCode) o
 directo desde la terminal.
 
-## Instalación
+## Instalación (cualquier agente, cualquier sistema)
 
-Mac:
-```bash
-./instalar.sh
-```
+Abre tu agente (Claude Code, OpenCode, Codex…) y escríbele:
 
-Windows (PowerShell):
-```powershell
-.\instalar.ps1
-```
+> Clona https://github.com/cesaraztro/aztro-clipper y sigue su INSTALAR.md
 
-Verifica:
-```bash
-uv run clipper doctor
-```
+El agente detecta si estás en Mac, Windows o Linux, instala `uv`, el comando `clipper`, FFmpeg y las skills, y
+verifica todo con `clipper doctor`. Después solo dile: **"saca clips de este video: <ruta>"**.
+
+¿Prefieres la terminal? `./instalar.sh` (Mac/Linux) o `.\instalar.ps1` (Windows) hacen lo mismo.
+
+Requisito: acceso al repo privado en GitHub (lo da la comunidad AztroTech).
 
 ## Uso en 6 pasos
 
 ```bash
 # 1. Registrar el episodio (modo A: video ya editado)
-uv run clipper ingest "~/Videos/mi-podcast.mp4" --marca aztrotech --hablantes 2
+clipper ingest "~/Videos/mi-podcast.mp4" --marca aztrotech --hablantes 2
 
 #    Modo B: crudos de cámara + audio externo + guion
-uv run clipper ingest ./camara/ --audio ./audio/voz.wav --guion guion.pdf --marca filo --hablantes 2
+clipper ingest ./camara/ --audio ./audio/voz.wav --guion guion.pdf --marca filo --hablantes 2
 
 # 2. Transcribir (Mac: GPU con mlx-whisper · Windows: faster-whisper)
-uv run clipper transcribe <episodio>
+clipper transcribe <episodio>
 
 # 3. Elegir clips: el agente lee 05_select/INSTRUCCIONES.md y escribe seleccion.json
-uv run clipper select <episodio>            # genera las instrucciones
-uv run clipper select <episodio> --validar  # valida lo que escribió el agente
+clipper select <episodio>            # genera las instrucciones
+clipper select <episodio> --validar  # valida lo que escribió el agente
 #    (sin agente: configura LLM_BASE_URL y usa --llm)
 
 # 4. Producir: receta, encuadre, render, control de calidad y entregables
-uv run clipper run <episodio>
+clipper run <episodio>
 
 # 5. CTA: palabra + link del video largo → checklist de ManyChat
-uv run clipper cta <episodio> --palabra CONTEXTO --url https://youtu.be/xxxx
+clipper cta <episodio> --palabra CONTEXTO --url https://youtu.be/xxxx
 
 # 6. Aprobar y proponer el calendario (el agente lo sube a Metricool como borradores)
-uv run clipper approve <episodio> --clips 01 02 03
-uv run clipper publish <episodio> --desde 2026-10-27
+clipper approve <episodio> --clips 01 02 03
+clipper publish <episodio> --desde 2026-10-27
 ```
 
 `<episodio>` es el nombre de la carpeta en `~/AztroClipper/episodios/` (p. ej. `2026-10-23_entrevista-reencuentro`).
@@ -76,11 +72,11 @@ uv run clipper publish <episodio> --desde 2026-10-27
 
 ## Marcas
 
-Cada marca vive en `marcas/<id>/` con dos archivos:
+Cada marca vive en `~/AztroClipper/marcas/<id>/` (fuera del código) con dos archivos:
 - `marca.json`: colores, vocabulario, correcciones, CTA, música, LUT y horarios.
 - `criterio.md`: qué temas funcionan.
 
-Copia `marcas/_plantilla/` para crear la tuya. Las marcas reales no se suben al repo (ver `.gitignore`).
+Créala con `clipper marca <id> --nombre "Mi marca"`. Las marcas nunca se suben al repo.
 
 ## Pruebas
 

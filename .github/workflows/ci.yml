@@ -1,0 +1,46 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  instalar-y-probar:
+    name: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    env:
+      CLIPPER_MODELO: tiny   # modelo chico para que la prueba sea rápida
+      CLIPPER_ASR: faster    # los runners no tienen GPU de Mac
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Voz sintética para la prueba (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y espeak-ng
+
+      - name: Instalar como un usuario (uv tool)
+        run: |
+          uv tool install --python 3.12 -e .
+          echo "$(uv tool dir --bin)" >> "$GITHUB_PATH"
+
+      - name: clipper setup (instala ffmpeg con el gestor del sistema)
+        run: clipper setup --sin-skills
+
+      - name: Pruebas unitarias
+        run: |
+          uv sync --extra dev
+          uv run pytest -q
+
+      - name: Prueba de punta a punta con el comando instalado
+        run: uv run python tests/e2e_humo.py

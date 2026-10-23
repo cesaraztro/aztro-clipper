@@ -6,6 +6,7 @@ largo tiene su propia palabra y todos sus clips la comparten.
 import datetime
 import re
 import unicodedata
+from pathlib import Path
 
 from .. import config
 
@@ -34,7 +35,7 @@ def validar_palabra(p, registradas=()):
 
 
 def ruta_registro(marca):
-    return config.MARCAS / marca["id"] / "cta_registro.json"
+    return Path(marca["_dir"]) / "cta_registro.json"
 
 
 def registrar(ep, palabra, url):
@@ -100,7 +101,7 @@ ManyChat no aplica. El link va en el primer comentario y en la descripción (lo 
 - No mandes ráfagas de mensajes idénticos.
 """
     destino = ep.ruta("manychat_" + n + ".md")
-    destino.write_text(t)
+    destino.write_text(t, encoding="utf-8")
     return destino
 
 

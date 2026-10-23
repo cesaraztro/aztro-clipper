@@ -127,7 +127,7 @@ def correr(ep, solo=None, forzar=False, redes=("general", "tiktok", "youtube")):
         with ThreadPoolExecutor(max_workers=4) as ex:
             list(ex.map(media.correr, trabajos))
         lista = rdir / "lista.txt"
-        lista.write_text("".join(f"file '{a.as_posix()}'\n" for a in archivos))
+        lista.write_text("".join(f"file '{a.as_posix()}'\n" for a in archivos), encoding="utf-8")
         salidas = [_final(ep, clip, cdir, lista, red) for red in redes]
         tam = salidas[0].stat().st_size / 1e6
         print(f"  clip {clip['id']}: {clip['dur']:.1f}s · {len(trabajos)}/{len(archivos)} tramos nuevos · "

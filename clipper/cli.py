@@ -92,6 +92,12 @@ def cmd_cta(a):
     ep = _ep(a)
     if a.confirmar:
         cta.confirmar(ep); print("Marcada como configurada en ManyChat."); return
+    if a.modo:
+        ep.meta["cta_modo"] = a.modo
+        ep.guardar_meta()
+        print(f"CTA en modo '{a.modo}'. Vuelve a correr: clipper run {ep.meta['slug']}")
+        if a.modo == "seguir":
+            return
     if a.palabra or a.url:
         palabra = a.palabra or ep.meta.get("palabra_cta")
         url = a.url or ep.meta.get("url_largo")
@@ -169,6 +175,7 @@ def main(argv=None):
     ep_cmd("package", "Copy por red, portada y entregables", cmd_package)
     s = ep_cmd("cta", "Registra la palabra CTA y genera el checklist de ManyChat", cmd_cta, clips=False)
     s.add_argument("--palabra"); s.add_argument("--url"); s.add_argument("--confirmar", action="store_true")
+    s.add_argument("--modo", choices=["palabra", "seguir"], help="palabra = comenta PALABRA (ManyChat); seguir = 'Sígueme' sin link")
     s = ep_cmd("approve", "Aprueba clips para publicar (guarda la huella de cada video)", cmd_approve)
     s.add_argument("--por", default="humano", help="Quién aprueba")
     s = ep_cmd("publish", "Propone el calendario de publicación (Metricool)", cmd_publish, clips=False)

@@ -49,6 +49,15 @@ def piezas_de(palabras, todas, en, mj, dur_src):
         s1 = min(dur_src, b_ + (0.45 if k == len(piezas) - 1 else 0.08), next_t0 - 0.06)
         while s1 - 0.01 > w1["t1"] and max(en.nivel(s1 - x * 0.01) for x in range(3)) >= en.umbral:
             s1 = round(s1 - 0.01, 2)  # nunca cerrar cuando ya arranca otro sonido
+        # palabras pegadas (sin silencio entre ellas): el corte va al valle de sonido más cercano, no a ciegas
+        if en.nivel(s1) > en.umbral + 6:
+            cands = [round(w1["t1"] - 0.25 + i * 0.01, 2) for i in range(56)]
+            cands = [t for t in cands if w1["t0"] + 0.1 < t <= next_t0 + 0.12] or [s1]
+            s1 = min(cands, key=lambda t: (round(en.nivel(t)), abs(t - w1["t1"])))
+        if en.nivel(s0) > en.umbral + 6:
+            cands = [round(w0["t0"] - 0.3 + i * 0.01, 2) for i in range(51)]
+            cands = [t for t in cands if prev_t1 - 0.12 <= t < w0["t1"] - 0.1] or [s0]
+            s0 = max(0.0, min(cands, key=lambda t: (round(en.nivel(t)), abs(t - w0["t0"]))))
         out.append({"palabras": ws, "s0": s0, "s1": s1})
     return out
 

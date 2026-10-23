@@ -76,7 +76,9 @@ def revisar(ep, clip, cdir, en, rapido=False, palabras_src=()):
             # en ese instante hay voz audible (el corte se oiría)
             nivel = max(en.nivel(t + d) for d in (-0.02, 0.0, 0.02))
             w = next((w for w in palabras_src if w["t0"] + 0.06 < t < w["t1"] - 0.06), None)
-            if nivel >= en.fuerte - 4 or (w is not None and nivel > en.umbral + 6):
+            # valle: el punto más bajo de su vecindad y claramente por debajo de la voz = hueco real entre palabras
+            valle = en.nivel(t) <= en.fuerte - 8 and en.nivel(t) <= min(en.nivel(t + d / 100) for d in range(-8, 9)) + 3
+            if nivel >= en.fuerte - 4 or (w is not None and nivel > en.umbral + 6 and not valle):
                 a_media.append(f"tramo {k + 1} {lado}" + (f" en «{w['w']}»" if w else "") + f" ({nivel:.0f} dB)")
             elif nivel > en.umbral + 6:
                 con_sonido.append(f"tramo {k + 1} {lado} ({en.nivel(t):.0f} dB)")

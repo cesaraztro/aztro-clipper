@@ -6,7 +6,7 @@
 
 <img src="docs/media/demo.gif" width="260" alt="Clip generado por aztro-clipper: gancho, firma, B-roll y subtítulos karaoke">
 
-▶️ [Ver el clip completo con audio](docs/media/clip-demo.mp4) · Mac · Windows · Linux · Claude Code · Codex · OpenCode
+▶️ [Descarga el clip completo con audio (3 MB)](https://github.com/cesaraztro/aztro-clipper/raw/main/docs/media/clip-demo.mp4) · Mac · Windows · Linux · Claude Code · Codex · OpenCode
 
 </div>
 

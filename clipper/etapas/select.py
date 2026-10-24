@@ -43,6 +43,10 @@ def instrucciones(ep):
            .replace("{{PALABRA}}", ep.meta.get("palabra_cta") or "(la decide el agente: una sola palabra para todo el episodio)")
            .replace("{{TRANSCRIPCION}}", str(ep.ruta("04_segment", "transcripcion.md")))
            .replace("{{SALIDA}}", str(ep.ruta("05_select", "seleccion.json"))))
+    if ep.meta.get("guion"):
+        txt += (f"\n## Guion del episodio\nLee el guion completo: `{ep.meta['guion']}`. Úsalo como mapa de temas: "
+                "prioriza los tramos que corresponden al GANCHO y a cada PUNTO, y busca un clip por punto fuerte. "
+                "Ojo: lo que cuenta es lo que se dijo en cámara (la transcripción), no el texto del guion.\n")
     d = ep.ruta("05_select", "INSTRUCCIONES.md")
     d.parent.mkdir(parents=True, exist_ok=True)
     d.write_text(txt, encoding="utf-8")

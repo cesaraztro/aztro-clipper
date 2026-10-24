@@ -16,9 +16,11 @@ Después de instalarlo, si la terminal no encuentra `uv`, usa la ruta completa:
 `~/.local/bin/uv` (Mac/Linux) o `$env:USERPROFILE\.local\bin\uv.exe` (Windows).
 
 ## 2. Código
-El repo es privado: el usuario necesita acceso en GitHub. Clónalo en la carpeta de datos:
-- Con GitHub CLI (`gh auth status` en verde): `gh repo clone cesaraztro/aztro-clipper ~/AztroClipper/app`
-- Sin GitHub CLI: `git clone https://github.com/cesaraztro/aztro-clipper ~/AztroClipper/app`
+El repo es público (no hace falta cuenta de GitHub). Clónalo en la carpeta de datos:
+`git clone https://github.com/cesaraztro/aztro-clipper ~/AztroClipper/app`
+
+Si no hay `git`, descarga https://github.com/cesaraztro/aztro-clipper/archive/refs/heads/main.zip y descomprímelo en
+`~/AztroClipper/app` (en ese caso `clipper actualizar` no funciona; para actualizar, vuelve a descargarlo).
 
 En Windows usa `$HOME\AztroClipper\app` como destino. Si ya existe, entra y corre `git pull`.
 

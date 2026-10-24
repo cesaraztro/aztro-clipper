@@ -167,6 +167,15 @@ def correr(ep, solo=None):
         mejor = max(perms, key=lambda pm: sum(C[l, c] for l, c in enumerate(pm)))
         mapa = {l: c for l, c in enumerate(mejor)}
         print("  voces → caras: " + ", ".join(f"voz {l + 1} = persona {c + 1}" for l, c in mapa.items()))
+    elif k_voz == 1 and n_caras > 1:
+        # un solo hablante pero más caras en cuadro (público, póster, alguien detrás): se sigue a quien mueve la boca
+        total = np.zeros(n_caras)
+        for _, clip, _, personas, _, _ in analisis:
+            for pz in clip["piezas"]:
+                if "_boca" in pz:
+                    total[:len(pz["_boca"])] += pz["_boca"]
+        mapa = {0: int(np.argmax(total))}
+        print(f"  un hablante: persona {mapa[0] + 1} de {n_caras} caras en cuadro")
     # 3) cámara por tramo
     for cp, clip, info, personas, cuadro, t_a in analisis:
         piezas = clip["piezas"]

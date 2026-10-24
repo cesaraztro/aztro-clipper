@@ -58,8 +58,19 @@ def piezas_de(palabras, todas, en, mj, dur_src):
             cands = [round(w0["t0"] - 0.3 + i * 0.01, 2) for i in range(51)]
             cands = [t for t in cands if prev_t1 - 0.12 <= t < w0["t1"] - 0.1] or [s0]
             s0 = max(0.0, min(cands, key=lambda t: (round(en.nivel(t)), abs(t - w0["t0"]))))
+        # ajuste fino: entrada y salida al punto más silencioso a ±80 ms (si mejora al menos 4 dB)
+        s0 = _afinar(en, s0, max(prev_t1 - 0.02, s0 - 0.08), min(w0["t0"] + 0.03, s0 + 0.08))
+        s1 = _afinar(en, s1, max(w1["t1"] - 0.15, s1 - 0.08), s1 + 0.08)
         out.append({"palabras": ws, "s0": s0, "s1": s1})
     return out
+
+
+def _afinar(en, t, a, b):
+    if b <= a:
+        return t
+    cands = [round(a + i * 0.01, 2) for i in range(int(round((b - a) * 100)) + 1)]
+    mejor = min(cands, key=lambda x: (en.nivel(x), abs(x - t)))
+    return mejor if en.nivel(mejor) <= en.nivel(t) - 4 else t
 
 
 def quitar_pausas(piezas, en, mj):

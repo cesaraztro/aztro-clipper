@@ -1,16 +1,61 @@
-# aztro-clipper
+<div align="center">
 
-De un video largo (podcast, entrevista, clase) a clips verticales listos para TikTok, Reels y Shorts. El sistema hace:
-- transcripción;
-- selección de momentos con IA;
-- cortes en silencio real;
-- encuadre que sigue a quien habla;
-- subtítulos animados, gancho y CTA por red social;
-- control de calidad;
-- copy para Metricool y checklist de ManyChat.
+# 🎬 aztro-clipper
 
-Funciona en **Mac**, **Windows** y **Linux**. Se opera desde un agente (Claude Code, Codex u OpenCode) o
-directo desde la terminal.
+**Tu podcast de 1 hora → 10 clips virales para TikTok, Reels y Shorts. Sin abrir un editor.**
+
+<img src="docs/media/demo.gif" width="260" alt="Clip generado por aztro-clipper: gancho, firma, B-roll y subtítulos karaoke">
+
+▶️ [Ver el clip completo con audio](docs/media/clip-demo.mp4) · Mac · Windows · Linux · Claude Code · Codex · OpenCode
+
+</div>
+
+---
+
+## ✨ Antes y después
+
+<p align="center"><img src="docs/media/antes-despues.jpg" width="520" alt="Toma cruda contra clip terminado"></p>
+
+A la izquierda, la toma cruda. A la derecha, lo que entrega `clipper` sin que toques nada: encuadre cerrado sobre quien habla,
+gancho arriba, subtítulos palabra por palabra y tu firma.
+
+## 💥 Efectos que trae cada clip
+
+<p align="center"><img src="docs/media/efectos.jpg" alt="Gancho, firma, B-roll, tarjeta, karaoke y CTA"></p>
+
+| Efecto | Qué hace |
+|---|---|
+| 🪝 **Gancho** | Frase de impacto en los primeros 1.5 s para frenar el scroll |
+| 🏷️ **Firma** | Nombre y rol que entran deslizando (lower-third) |
+| 🎞️ **B-roll** | Imágenes que ilustran lo que dices, con Ken Burns y fundido. Primero tu material, luego Pexels |
+| 🟨 **Tarjetas** | La palabra clave salta en grande con rebote y sonido *pop* |
+| 🔤 **Karaoke** | Subtítulos que iluminan cada palabra al decirla |
+| 📢 **CTA** | Cierre por red: "comenta PALABRA" (IG/FB), "mándame DM" (TikTok) o "Sígueme" |
+| 🎯 **Cámara viva** | Sigue a quien habla, punch-ins al ritmo y cambio visual cada ≤ 4 s |
+| 🔊 **Diseño sonoro** | *Whoosh*, *pop* e impacto en cada evento, música con ducking y audio a −14 LUFS |
+| 📊 **Barra de progreso** | Línea dorada que invita a ver hasta el final |
+
+## 🖼️ Imágenes y 🎥 videos
+
+- **Tu marca primero:** pon fotos o videos en `marcas/<id>/assets/broll/` y el sistema los usa cuando el nombre del
+  archivo coincide con lo que se dice (`render-plaza.png` aparece cuando hablas de "plaza").
+- **Pexels después:** si no hay material propio, descarga videos verticales con licencia libre de uso comercial
+  (necesita `PEXELS_API_KEY`) y los guarda en caché para no bajarlos dos veces.
+- **El agente elige:** en `seleccion.json` escribe qué buscar y en qué palabra mostrarlo; tú solo apruebas.
+- **Tres versiones por clip:** `general`, `tiktok` y `youtube`, cada una con su CTA, en H.264 listo para Metricool.
+
+## ⚙️ Cómo funciona
+
+```mermaid
+flowchart LR
+  A[🎙️ Video largo] --> B[📝 Transcribe]
+  B --> C[🧠 El agente elige momentos]
+  C --> D[✂️ Corta en silencio]
+  D --> E[🎯 Encuadra a quien habla]
+  E --> F[💥 Efectos + B-roll + sonido]
+  F --> G[✅ Control de calidad]
+  G --> H[📅 Metricool + ManyChat]
+```
 
 ## Instalación (cualquier agente, cualquier sistema)
 

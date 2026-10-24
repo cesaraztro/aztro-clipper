@@ -1,6 +1,6 @@
 ---
 name: aztro-clipper
-description: Convierte un video largo (podcast, entrevista, clase, live; de 10 min a 1 h o más) en clips verticales para TikTok, Instagram Reels y YouTube Shorts con subtítulos, encuadre que sigue a quien habla, gancho y CTA para ManyChat. Úsala cuando el usuario diga "saca clips de este video", "procesa el podcast", "haz shorts / reels de esta entrevista", "edita este video largo" o comparta un video de más de 5 minutos.
+description: Convierte un video largo (podcast, entrevista, clase, live; de 10 min a 1 h o más) en clips verticales dinámicos para TikTok, Instagram Reels y YouTube Shorts: subtítulos karaoke, gancho, B-roll (propio o Pexels), tarjetas animadas con la palabra clave, firma, barra de progreso, efectos de sonido, encuadre que sigue a quien habla y CTA para ManyChat. Úsala cuando el usuario diga "saca clips de este video", "procesa el podcast", "haz shorts / reels de esta entrevista", "edita este video largo" o comparta un video de más de 5 minutos.
 ---
 
 # aztro-clipper

@@ -47,7 +47,7 @@ gancho arriba, subtítulos palabra por palabra y tu firma.
 ## ⚙️ Cómo funciona
 
 ```mermaid
-flowchart LR
+flowchart TD
   A[🎙️ Video largo] --> B[📝 Transcribe]
   B --> C[🧠 El agente elige momentos]
   C --> D[✂️ Corta en silencio]

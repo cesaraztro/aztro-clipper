@@ -35,7 +35,7 @@ def modelo_yunet():
 
 
 def _cascadas():
-    return cv2.FaceDetectorYN.create(str(modelo_yunet()), "", (320, 320), 0.6, 0.3, 50)
+    return cv2.FaceDetectorYN.create(str(modelo_yunet()), "", (320, 320), 0.45, 0.3, 50)  # 0.45: también perfiles
 
 
 def leer_cuadros(ruta, t0, dur, info):
@@ -108,21 +108,55 @@ def actividad_boca(cuadros, personas):
     return out
 
 
+def seguir(persona, personas, dets, i0, i1):
+    """Dónde está la persona en este tramo (puede caminar). Devuelve la persona con su posición en el tramo y
+    'ruta': [(cuadro, cx)] para un paneo suave. Sin caras en el tramo, usa la detección más cercana en el tiempo."""
+    def suyas(a, b):
+        out = []
+        for (i, cx, cy, w, h) in dets:
+            if a <= i <= b:
+                mas_cercana = min(personas, key=lambda p: abs(p["cx"] - cx) + abs(p["h"] - h))
+                if mas_cercana is persona or len(personas) == 1:
+                    out.append((i, cx, cy, h))
+        return out
+    cerca = suyas(i0 - 4, i1 + 4)
+    if not cerca:  # sin cara en este tramo (de espaldas, de perfil, fuera de cuadro): plano abierto, nunca a ciegas
+        return dict(persona, perdida=True)
+    arr = np.array(cerca)
+    # ruta: mediana de la posición por medio segundo (4 cuadros de análisis)
+    ruta = []
+    for k in range(int(i0), int(i1) + 1, 4):
+        v = arr[(arr[:, 0] >= k - 2) & (arr[:, 0] <= k + 6)]
+        if len(v):
+            ruta.append((float(k - i0), float(np.median(v[:, 1]))))
+    return dict(persona, cx=float(np.median(arr[:, 1])), cy=float(np.median(arr[:, 2])), h=float(np.median(arr[:, 3])),
+                ruta=ruta)
+
+
 def camara_para(persona, info, mj, escala, extra=1.0):
     """Recorte 9:16 en píxeles del original con la cara a la altura y tamaño de la marca ('extra' = más cerrado)."""
     sw, sh = info["w"], info["h"]
     bw, bh = (sh * 9 / 16, sh) if sw / sh > 9 / 16 else (sw, sw * 16 / 9)
-    if persona is None:
+    if persona is None or persona.get("perdida"):
         z, cx, cy = 1.0, sw / 2, sh / 2
     else:
         cara_h = persona["h"] * escala
-        z = float(np.clip(mj["cara_objetivo"] * bh / max(cara_h, 1) * extra, 1.0, mj["zoom_max"] * extra))
+        # zoom limitado por la resolución: el recorte nunca baja de ~55% del ancho final (evita imagen suave)
+        zmax = min(mj["zoom_max"] * extra, max(1.0, sw / (W * 0.55)))
+        z = float(np.clip(mj["cara_objetivo"] * bh / max(cara_h, 1) * extra, 1.0, zmax))
         cx, cy = persona["cx"] * escala, persona["cy"] * escala
     cw, ch = bw / z, bh / z
     x = float(np.clip(cx - cw / 2, 0, sw - cw))
-    y = float(np.clip(cy - mj["cara_altura"] * ch, 0, sh - ch)) if persona else (sh - ch) / 2
-    return {"x": round(x), "y": round(y), "w": int(cw) // 2 * 2, "h": int(ch) // 2 * 2, "z": round(z, 3),
-            "fx": round((cx - x) / cw, 4), "fy": round((cy - y) / ch, 4)}
+    y = float(np.clip(cy - mj["cara_altura"] * ch, 0, sh - ch)) if (persona and not persona.get("perdida")) else (sh - ch) / 2
+    cam = {"x": round(x), "y": round(y), "w": int(cw) // 2 * 2, "h": int(ch) // 2 * 2, "z": round(z, 3),
+           "fx": round((cx - x) / cw, 4), "fy": round((cy - y) / ch, 4)}
+    ruta = (persona or {}).get("ruta") or []
+    if len(ruta) >= 2:
+        xs = [float(np.clip(c * escala - cw / 2, 0, sw - cw)) for _, c in ruta]
+        xs = np.convolve(np.pad(xs, 1, mode="edge"), np.ones(3) / 3, mode="valid")  # suaviza el paneo
+        if max(xs) - min(xs) > 0.04 * sw:  # solo si de verdad se movió
+            cam["x_keys"] = [[round(k / FPS_ANALISIS, 2), round(float(v))] for (k, _), v in zip(ruta, xs)]
+    return cam
 
 
 def correr(ep, solo=None):
@@ -142,7 +176,9 @@ def correr(ep, solo=None):
         info = f["info"]
         t_a, t_b = piezas[0]["s0"], piezas[-1]["s1"]
         cuadros, _ = leer_cuadros(f["ruta"], local, t_b - t_a, info)
-        personas = agrupar_personas(detectar(cuadros, detector), len(cuadros), ANCHO_ANALISIS)
+        dets = detectar(cuadros, detector)
+        personas = agrupar_personas(dets, len(cuadros), ANCHO_ANALISIS)
+        clip["_dets"] = dets
         act = actividad_boca(cuadros, personas) if len(personas) > 1 else None
         for pz in piezas:
             pz["_voz"] = diarize.voces_en(diar, pz["s0"], pz["s1"]) if diar["k"] > 1 else np.ones(1)
@@ -211,9 +247,13 @@ def correr(ep, solo=None):
                 inicio_toma = pz["o0"]
                 cerrado = False if cambio else not cerrado
             persona = personas[pz["hablante"]] if pz.get("hablante") is not None else None
+            if persona is not None:  # la cámara sigue dónde está la persona EN ESTE tramo (puede caminar)
+                persona = seguir(persona, personas, clip["_dets"], (pz["s0"] - t_a) * FPS_ANALISIS,
+                                 (pz["s1"] - t_a) * FPS_ANALISIS)
             pz["camara"] = camara_para(persona, info, mj, escala, mj["alterno"] if cerrado else 1.0)
             pz["toma"] = toma
             pz["modo"] = "TRACK" if persona is not None else "GENERAL"
+        clip.pop("_dets", None)
         clip["personas"] = [{k: round(v * escala, 1) if k != "soporte" else round(v, 2) for k, v in p.items()} for p in personas]
         config.escribir(cp, clip)
         if cuadro is not None:

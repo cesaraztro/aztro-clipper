@@ -14,3 +14,9 @@
 
 Ideas de diseño (sin copiar código): OpenShorts (MIT), Cutawan (MIT), AI-Youtube-Shorts-Generator (MIT), clipify (MIT).
 Excluidos a propósito: ultralytics/YOLO, PyMuPDF, supoclip, whisper-timestamped (AGPL) y Remotion (licencia comercial por persona).
+
+## Material de demostración (`docs/media/`)
+
+- Toma y voz: César Holguín / AztroTech, material propio, solo para mostrar el resultado.
+- B-roll del demo: videos de Pexels 35163081, 6799745 y 4358802 ([licencia Pexels](https://www.pexels.com/license/): uso gratuito, sin atribución obligatoria).
+- La música y los efectos de sonido de cada marca no se incluyen en el repo.

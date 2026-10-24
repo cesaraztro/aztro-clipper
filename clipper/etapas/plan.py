@@ -183,6 +183,42 @@ def punch_ins(piezas, palabras, mj, total, cta_dur):
             pz["punch"].sort()
 
 
+def _limpio(t):
+    return re.sub(r"[^\wáéíóúñÁÉÍÓÚÑüÜ%$#+-]", "", t)
+
+
+def eventos_motion(c, salida, total, cta_t0, mo):
+    """B-roll y palabras clave animadas, sincronizados con el instante en que se dice cada palabra."""
+    def buscar_palabra(p, desde=0.0):
+        n = config.norm(p.split()[0]) if p else ""
+        return next((w for w in salida if w["t0"] >= desde and n and config.norm(w["texto"]) == n), None)
+    broll, ocupado = [], []
+    for b in c.get("broll", [])[: mo["broll_max"]]:
+        w = buscar_palabra(b.get("palabra", ""), 1.8)
+        if not w:
+            continue
+        t0 = max(1.8, w["t0"] - 0.15)
+        dur = min(mo["broll_dur"], cta_t0 - 0.3 - t0)
+        if dur < 1.2 or any(abs(t0 - x["t0"]) < mo["broll_sep"] for x in broll):
+            continue
+        broll.append({"t0": round(t0, 3), "dur": round(dur, 3), "buscar": b["buscar"], "palabra": b.get("palabra")})
+        ocupado.append((t0 - 0.3, t0 + dur + 0.3))
+    pedidas = c.get("tarjetas") or c.get("enfasis", [])
+    cand = []
+    for p in pedidas:
+        w = buscar_palabra(p, 1.2)
+        if w and len(_limpio(w["texto"])) >= 4:
+            cand.append(w)
+    tarjetas = []
+    for w in sorted(cand, key=lambda w: w["t0"]):
+        if len(tarjetas) >= mo["tarjetas_max"] or w["t0"] > cta_t0 - 0.8:
+            break
+        if any(a <= w["t0"] <= b for a, b in ocupado) or any(w["t0"] - x["t0"] < mo["tarjeta_sep"] for x in tarjetas):
+            continue
+        tarjetas.append({"t0": round(w["t0"] - 0.05, 3), "dur": mo["tarjeta_dur"], "texto": _limpio(w["texto"]).upper()})
+    return broll, tarjetas
+
+
 def construir_clip(ep, c, ors, todas, en, vel):
     mj, st, cta_cfg = ep.marca["montaje"], ep.marca["subtitulos"], ep.marca["cta"]
     por_id = {o["id"]: o for o in ors}
@@ -209,6 +245,7 @@ def construir_clip(ep, c, ors, todas, en, vel):
     cta_dur = min(cta_cfg["dur"], total * 0.25)
     punch_ins(piezas, salida, mj, total, cta_dur)
     paginas = paginas_subtitulos(salida, total, st)
+    broll, tarjetas = eventos_motion(c, salida, total, total - cta_dur, ep.marca["motion"])
     return {
         "version": 1, "id": c["id"], "marca": ep.marca["id"], "titulo": c["titulo"], "gancho": c["gancho"],
         "hook_tipo": c.get("hook_tipo"), "viral_score": c.get("viral_score"), "razon": c.get("razon"),
@@ -218,6 +255,7 @@ def construir_clip(ep, c, ors, todas, en, vel):
                     "punch": pz.get("punch", []), "texto": " ".join(w["w"] for w in pz["palabras"])} for pz in piezas],
         "palabras": salida, "paginas": paginas,
         "gancho_overlay": {"texto": c["gancho"], "t0": 0.0, "dur": min(ep.marca["gancho"]["dur"], total)},
+        "broll": broll, "tarjetas": tarjetas,
         "cta": {"modo": ep.meta.get("cta_modo", "palabra"), "palabra": ep.meta.get("palabra_cta"),
                 "t0": round(total - cta_dur, 3), "dur": round(cta_dur, 3)},
     }

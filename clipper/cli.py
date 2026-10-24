@@ -188,6 +188,7 @@ def main(argv=None):
             flujo.reconfigure(encoding="utf-8", errors="replace")
         except (AttributeError, ValueError):
             pass
+    config.cargar_env()
     a = p.parse_args(argv)
     try:
         a.f(a)

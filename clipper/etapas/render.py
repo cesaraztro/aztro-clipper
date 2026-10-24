@@ -12,7 +12,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from .. import config, media, subtitulos
+from .. import broll as broll_mod, config, media, subtitulos
 from ..config import FPS, H, W
 from .ingest import resolver
 
@@ -71,9 +71,55 @@ def _cmd_tramo(ep, pz, vel, salida):
     return cmd
 
 
+IMAGEN = {".jpg", ".jpeg", ".png"}
+
+
+def _eventos_sonido(clip, marca):
+    """Momentos con efecto de sonido (whoosh en B-roll, pop en palabra clave, click en firma…), sin amontonarse."""
+    sfx, mo = marca.get("sfx") or {}, marca.get("motion", {})
+    ev = [("gancho", 0.0)] + [("broll", b["t0"]) for b in clip.get("broll", []) if b.get("archivo")]
+    ev += [("tarjeta", t["t0"]) for t in clip.get("tarjetas", [])]
+    if (marca.get("firma") or {}).get("nombre"):
+        ev.append(("firma", mo.get("firma_desde", 0.6)))
+    if clip.get("cta", {}).get("dur"):
+        ev.append(("cta", clip["cta"]["t0"]))
+    out, ult = [], -9.0
+    for tipo, t in sorted(ev, key=lambda x: x[1]):
+        cfg = sfx.get(tipo)
+        f = config.recurso_marca(marca, cfg.get("archivo")) if cfg else None
+        if not f or t - ult < 0.35:
+            continue
+        out.append((max(0.0, t - cfg.get("antes", 0)), f, cfg.get("db", -12)))
+        ult = t
+    return out
+
+
 def _final(ep, clip, cdir, lista, red):
     m = ep.marca
     ass = subtitulos.escribir(clip, m, cdir / "render" / f"subs_{red}.ass", red)
+    total = clip["dur"]
+    entradas = ["-f", "concat", "-safe", "0", "-i", str(lista)]
+    idx = 1
+    musica = config.recurso_marca(m, m["audio"].get("musica"))
+    i_mus = None
+    if musica:
+        entradas += ["-stream_loop", "-1", "-i", str(musica)]
+        i_mus, idx = idx, idx + 1
+    # video: base → B-roll encima (entra y sale suave, paneo lento) → color de marca → gráficos y subtítulos
+    vfc, base = [], "[0:v]"
+    for k, b in enumerate(b for b in clip.get("broll", []) if b.get("archivo")):
+        d, t0 = b["dur"], b["t0"]
+        if Path(b["archivo"]).suffix.lower() in IMAGEN:
+            entradas += ["-loop", "1", "-t", f"{d + 0.2:.3f}", "-i", b["archivo"]]
+        else:
+            entradas += ["-t", f"{d + 0.2:.3f}", "-i", b["archivo"]]
+        vfc.append(f"[{idx}:v]trim=duration={d:.3f},setpts=PTS-STARTPTS,"
+                   f"scale={int(W * 1.1)}:{int(H * 1.1)}:force_original_aspect_ratio=increase,"
+                   f"crop={W}:{H}:x='(iw-ow)*t/{d:.3f}':y='(ih-oh)/2',fps={FPS},format=yuva420p,"
+                   f"fade=t=in:st=0:d=0.12:alpha=1,fade=t=out:st={max(0, d - 0.15):.3f}:d=0.15:alpha=1,"
+                   f"setpts=PTS+{t0:.3f}/TB[br{k}]")
+        vfc.append(f"{base}[br{k}]overlay=0:0:eof_action=pass[v{k}]")
+        base, idx = f"[v{k}]", idx + 1
     vf = []
     lut = config.recurso_marca(m, m["color"].get("lut"))
     if lut:
@@ -82,24 +128,29 @@ def _final(ep, clip, cdir, lista, red):
         vf.append(f"vignette=angle={0.2 + 0.4 * m['color']['vineta']:.3f}")
     vf.append(f"subtitles={media.ruta_filtro(ass)}:fontsdir={media.ruta_filtro(config.FUENTES)}")
     vf.append("format=yuv420p")
-    total = clip["dur"]
-    entradas = ["-f", "concat", "-safe", "0", "-i", str(lista)]
+    vfc.append(f"{base}{','.join(vf)}[vout]")
+    # audio: voz pulida + música que baja cuando hablas + efectos de sonido + volumen estándar de redes
     af = [f"[0:a]highpass=f=90,afftdn=nr=10:nf=-42:tn=1,acompressor=threshold=-20dB:ratio=2.5:attack=8:release=120:makeup=1.5,"
           f"aresample=48000,aformat=channel_layouts=stereo,asplit=2[voz][llave]"]
     mezcla = ["[voz]"]
-    musica = config.recurso_marca(m, m["audio"].get("musica"))
-    if musica:
-        entradas += ["-stream_loop", "-1", "-i", str(musica)]
-        af.append(f"[1:a]atrim=duration={total:.3f},aresample=48000,aformat=channel_layouts=stereo,"
+    if i_mus is not None:
+        af.append(f"[{i_mus}:a]atrim=duration={total:.3f},aresample=48000,aformat=channel_layouts=stereo,"
                   f"equalizer=f=2500:t=o:w=1.3:g=-4,volume={m['audio']['musica_volumen']},"
                   f"afade=t=in:d=0.6,afade=t=out:st={max(0, total - 1.2):.3f}:d=1.2[mus]")
         af.append("[mus][llave]sidechaincompress=threshold=0.02:ratio=8:attack=20:release=250[mduck]")
         mezcla.append("[mduck]")
     else:
         af.append("[llave]anullsink")
+    for k, (t, f, db) in enumerate(_eventos_sonido(clip, m)):
+        entradas += ["-i", str(f)]
+        af.append(f"[{idx}:a]aresample=48000,aformat=channel_layouts=stereo,volume={db}dB,"
+                  f"adelay={int(t * 1000)}:all=1[s{k}]")
+        mezcla.append(f"[s{k}]")
+        idx += 1
     af.append("".join(mezcla) + f"amix=inputs={len(mezcla)}:normalize=0:duration=first,"
               f"loudnorm=I={m['audio']['lufs']}:TP=-1.5:LRA=9,aresample=48000,aformat=channel_layouts=stereo[aout]")
-    fc = f"[0:v]{','.join(vf)}[vout];" + ";".join(af)
+    fc = ";".join(vfc + af)
+    (cdir / "render" / f"filtro_{red}.txt").write_text(fc, encoding="utf-8")
     salida = cdir / f"video_{red}.mp4"
     media.correr([media.ffmpeg_bin(), "-y", "-v", "error", *entradas, "-filter_complex", fc,
                   "-map", "[vout]", "-map", "[aout]", "-t", f"{total:.3f}", "-r", str(FPS),
@@ -135,6 +186,15 @@ def correr(ep, solo=None, forzar=False, redes=("general", "tiktok", "youtube")):
             list(ex.map(media.correr, trabajos))
         lista = rdir / "lista.txt"
         lista.write_text("".join(f"file '{a.as_posix()}'\n" for a in archivos), encoding="utf-8")
+        usados = set()
+        for bro in clip.get("broll", []):
+            try:
+                f = broll_mod.conseguir(ep.marca, bro["buscar"], bro["dur"], usados)
+            except Exception as e:  # sin internet o sin llave: el clip sale igual, sin ese B-roll
+                print(f"  aviso: B-roll '{bro['buscar']}' no disponible ({type(e).__name__})")
+                f = None
+            bro["archivo"] = str(f) if f else None
+        config.escribir(cp, clip)
         salidas = [_final(ep, clip, cdir, lista, red) for red in redes]
         tam = salidas[0].stat().st_size / 1e6
         print(f"  clip {clip['id']}: {clip['dur']:.1f}s · {len(trabajos)}/{len(archivos)} tramos nuevos · "

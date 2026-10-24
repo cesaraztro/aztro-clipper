@@ -46,9 +46,26 @@ MARCA_BASE = {
         "dur": 3.2,
     },
     "hashtags": [],
+    # motion graphics: palabras clave animadas, B-roll, barra de progreso y firma de nombre
+    "motion": {"tarjetas_max": 6, "tarjeta_sep": 3.5, "tarjeta_dur": 1.1, "tarjeta_y": 1180,
+               "broll_max": 5, "broll_sep": 5.0, "broll_dur": 2.2, "barra": True, "firma_desde": 0.6, "firma_dur": 3.2},
+    "firma": {"nombre": None, "rol": None},
+    # efectos de sonido por evento: {"broll": {"archivo": "assets/sfx/whoosh.mp3", "db": -11, "antes": 0.12}, ...}
+    "sfx": {},
     "publicacion": {"redes": ["instagram", "tiktok", "youtube", "facebook"], "borrador": True,
                     "max_por_dia": 2, "separacion_horas": 4, "horarios": ["12:30", "19:30"]},
 }
+
+
+def cargar_env():
+    """Lee KEY=VALOR de ~/AztroClipper/.env y del .env del repo (sin pisar variables ya definidas)."""
+    for f in (datos_dir() / ".env", REPO / ".env"):
+        if f.exists():
+            for linea in f.read_text(encoding="utf-8").splitlines():
+                if "=" in linea and not linea.lstrip().startswith("#"):
+                    k, v = linea.split("=", 1)
+                    if v.strip():
+                        os.environ.setdefault(k.strip(), v.strip())
 
 
 def datos_dir():

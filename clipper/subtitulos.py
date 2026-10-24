@@ -45,6 +45,9 @@ Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
 Style: Sub,{fu['subtitulos']},{st['tam']},{blanco},{blanco},{caja},{caja},0,0,0,0,100,100,0,0,3,{st.get('relleno', 16)},0,2,80,80,{H - st['y']},1
 Style: Gancho,{fu['titulo']},{gc['tam']},{oscuro},{oscuro},{enf},{enf},0,0,0,0,100,100,0,0,3,22,0,8,90,90,{gc['y']},1
 Style: CTA,{fu['titulo']},64,{blanco},{blanco},{caja},{caja},0,0,0,0,100,100,0,0,3,26,0,2,90,90,{H - 1260},1
+Style: Tarjeta,{fu['titulo']},124,{oscuro},{oscuro},{enf},{enf},0,0,0,0,100,100,0,0,3,24,0,5,60,60,0,1
+Style: Firma,{fu['titulo']},62,{blanco},{blanco},{caja},{caja},0,0,0,0,100,100,0,0,3,18,0,1,70,70,{H - 1640},1
+Style: Grafico,Arial,10,{blanco},{blanco},{blanco},{blanco},0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -70,6 +73,31 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     if g and g.get("texto"):
         ev.append(f"Dialogue: 1,{ass_t(g['t0'])},{ass_t(g['t0'] + g['dur'])},Gancho,,0,0,0,,"
                   f"{{\\fad(150,250)\\fscx70\\fscy70\\t(0,180,\\fscx104\\fscy104)\\t(180,280,\\fscx100\\fscy100)}}{_escape(g['texto'].upper())}")
+    mo = marca.get("motion", {})
+    # barra de progreso arriba: se llena durante todo el clip (retención: "ya casi acaba")
+    if mo.get("barra", True) and clip.get("dur"):
+        ms = int(clip["dur"] * 1000)
+        acento = ass_color(col.get("acento", col["enfasis"]))
+        ev.append(f"Dialogue: 3,{ass_t(0)},{ass_t(clip['dur'] + 0.5)},Grafico,,0,0,0,,"
+                  f"{{\\pos(0,0)\\1c{enf}\\clip(0,0,0,14)\\t(0,{ms},\\clip(0,0,{W},14))\\p1}}m 0 0 l {W} 0 {W} 14 0 14{{\\p0}}")
+        ev.append(f"Dialogue: 2,{ass_t(0)},{ass_t(clip['dur'] + 0.5)},Grafico,,0,0,0,,"
+                  f"{{\\pos(0,0)\\1c{acento}\\1a&HB0&\\p1}}m 0 0 l {W} 0 {W} 14 0 14{{\\p0}}")
+    # palabras clave: entran con rebote y salen rápido (motion graphic sobre la palabra que se está diciendo)
+    for tj in clip.get("tarjetas", []):
+        t0, t1 = tj["t0"], tj["t0"] + tj["dur"]
+        y = mo.get("tarjeta_y", 1180)
+        ev.append(f"Dialogue: 4,{ass_t(t0)},{ass_t(t1)},Tarjeta,,0,0,0,,"
+                  f"{{\\pos({W // 2},{y})\\frz-3\\fad(60,140)\\fscx30\\fscy30\\t(0,140,\\fscx115\\fscy115)"
+                  f"\\t(140,260,\\fscx100\\fscy100\\frz0)}}{_escape(tj['texto'])}")
+    # firma: nombre y rol al inicio, se desliza desde la izquierda
+    fi = marca.get("firma") or {}
+    if fi.get("nombre"):
+        a0 = mo.get("firma_desde", 0.6)
+        a1 = min(a0 + mo.get("firma_dur", 3.2), clip.get("dur", 10) * 0.4)
+        y = H - 230
+        rol = f"\\N{{\\fs40\\b0\\1c{enf}}}{_escape(fi['rol'])}" if fi.get("rol") else ""
+        ev.append(f"Dialogue: 4,{ass_t(a0)},{ass_t(a1)},Firma,,0,0,0,,"
+                  f"{{\\an1\\move(-420,{y},70,{y},0,260)\\fad(0,200)}}{_escape(fi['nombre'])}{rol}")
     if cta.get("modo") == "seguir" and cta.get("dur"):
         # sin link largo ni ManyChat: el cierre invita a seguir la cuenta (no promete nada que no se entregue)
         a, b, c = marca["cta"]["seguir"]

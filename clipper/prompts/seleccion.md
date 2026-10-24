@@ -44,11 +44,20 @@ Debe ser de 4 a 12 letras, sin acentos, relacionada con el tema y que no sea com
       "viral_score": 82,
       "razon": "Por qué este momento retiene",
       "enfasis": ["palabras", "clave", "que", "se", "resaltan"],
+      "tarjetas": ["palabras", "que", "aparecen", "grandes", "animadas"],
+      "broll": [{"palabra": "palabra exacta dicha en el clip", "buscar": "english stock video search"}],
       "descripcion": "Copy de 1–2 frases para la publicación",
       "hashtags": ["#tema"]
     }
   ]
 }
 ```
+
+## Motion graphics y B-roll
+- `tarjetas`: 3–6 palabras fuertes del clip (conceptos, cifras). Aparecen grandes y animadas justo cuando se dicen.
+- `broll`: 2–5 momentos donde una imagen ayuda (lo que se nombra: una herramienta, un lugar, una acción).
+  `palabra` es una palabra que se dice en ese momento; `buscar` es la búsqueda en inglés para Pexels
+  (concreta y visual: "person typing on laptop", no "productividad"). Si la marca tiene material propio en
+  `assets/broll/`, nombra los archivos con palabras de la búsqueda y se usarán primero.
 
 Después corre `clipper select <episodio> --validar` y corrige lo que marque como error.

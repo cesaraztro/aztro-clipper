@@ -80,9 +80,9 @@ def validar(ep):
     vel = _velocidad(ep)
     errores, avisos, clips = [], [], []
     palabra_ep = sel.get("palabra_cta") or ep.meta.get("palabra_cta")
-    if not palabra_ep:
-        errores.append("falta 'palabra_cta' (una palabra para todo el episodio)")
-    else:
+    if not palabra_ep and ep.meta.get("cta_modo") != "seguir":
+        errores.append("falta 'palabra_cta' (una palabra para todo el episodio) o usa: clipper cta <ep> --modo seguir")
+    elif palabra_ep:
         reg_p = cta.ruta_registro(ep.marca)
         reg = config.leer(reg_p) if reg_p.exists() else {}
         problemas = cta.validar_palabra(palabra_ep, [k for k, v in reg.items() if v.get("episodio") != ep.meta["slug"]])

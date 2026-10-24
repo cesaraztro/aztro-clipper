@@ -43,7 +43,14 @@ def _cmd_tramo(ep, pz, vel, salida):
     info, cam = f["info"], pz["camara"]
     dur = pz["s1"] - pz["s0"]
     tm = media.tonemap_para(info)
-    vf = (f"crop={cam['w']}:{cam['h']}:{cam['x']}:{cam['y']}" + (f",{tm}" if tm else "") +
+    x_expr = str(cam["x"])
+    if cam.get("x_keys"):  # paneo suave que sigue a la persona (interpolación lineal entre puntos)
+        ks = cam["x_keys"]
+        x_expr = str(ks[-1][1])
+        for (t0, x0), (t1, x1) in reversed(list(zip(ks, ks[1:]))):
+            x_expr = f"if(lt(t\\,{t1}),{x0}+({x1}-{x0})*(t-{t0})/{max(t1 - t0, 0.01)},{x_expr})"
+        x_expr = f"if(lt(t\\,{ks[0][0]}),{ks[0][1]},{x_expr})"
+    vf = (f"crop={cam['w']}:{cam['h']}:'{x_expr}':{cam['y']}" + (f",{tm}" if tm else "") +
           f",format=yuv420p,setpts=(PTS-STARTPTS)/{vel},fps={FPS}" + _perspectiva(pz) +
           f",scale={W}:{H}:flags=lanczos,setsar=1")
     if pz.get("modo") == "GENERAL":  # nadie en cuadro: video completo al centro con fondo desenfocado

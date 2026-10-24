@@ -23,8 +23,6 @@ verifica todo con `clipper doctor`. Después solo dile: **"saca clips de este vi
 
 ¿Prefieres la terminal? `./instalar.sh` (Mac/Linux) o `.\instalar.ps1` (Windows) hacen lo mismo.
 
-Requisito: acceso al repo privado en GitHub (lo da la comunidad AztroTech).
-
 ## Uso en 6 pasos
 
 ```bash

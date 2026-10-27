@@ -55,9 +55,16 @@ Debe ser de 4 a 12 letras, sin acentos, relacionada con el tema y que no sea com
 
 ## Motion graphics y B-roll
 - `tarjetas`: 3–6 palabras fuertes del clip (conceptos, cifras). Aparecen grandes y animadas justo cuando se dicen.
-- `broll`: 2–5 momentos donde una imagen ayuda (lo que se nombra: una herramienta, un lugar, una acción).
+- `broll`: 1–3 momentos donde una imagen ilustra **literalmente** lo que se dice y el título del clip (lo que se
+  nombra: un libro, un reloj, una lupa, una fiesta). Si la imagen no se entiende sin explicación, no la pongas.
   `palabra` es una palabra que se dice en ese momento; `buscar` es la búsqueda en inglés para Pexels
-  (concreta y visual: "person typing on laptop", no "productividad"). Si la marca tiene material propio en
+  (concreta y visual: "man reading a book", no "productividad"). Si la marca tiene material propio en
   `assets/broll/`, nombra los archivos con palabras de la búsqueda y se usarán primero.
+- Las tarjetas, el gancho y el CTA se acomodan solos donde no tapan la cara; no tienes que darles posición.
 
 Después corre `clipper select <episodio> --validar` y corrige lo que marque como error.
+
+## Revisa el B-roll antes de producir
+`clipper broll <episodio>` arma `05_select/broll_candidatos.jpg` con los 5 primeros videos de Pexels de cada
+búsqueda y su id. Ábrela y, en cada B-roll, fija `"pexels_id"` con el que de verdad ilustra la frase. Si ninguno
+encaja, cambia `buscar` y vuelve a correr el comando, o quita ese B-roll. Nunca dejes un B-roll sin revisar.

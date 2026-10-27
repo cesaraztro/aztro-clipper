@@ -189,7 +189,7 @@ def correr(ep, solo=None, forzar=False, redes=("general", "tiktok", "youtube")):
         usados = set()
         for bro in clip.get("broll", []):
             try:
-                f = broll_mod.conseguir(ep.marca, bro["buscar"], bro["dur"], usados)
+                f = broll_mod.conseguir(ep.marca, bro["buscar"], bro["dur"], usados, bro.get("pexels_id"))
             except Exception as e:  # sin internet o sin llave: el clip sale igual, sin ese B-roll
                 print(f"  aviso: B-roll '{bro['buscar']}' no disponible ({type(e).__name__})")
                 f = None

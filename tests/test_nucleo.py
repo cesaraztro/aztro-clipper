@@ -132,3 +132,15 @@ def test_ruta_filtro_windows_y_espacios():
     assert r.startswith("'") and r.endswith("'") and "AZTROTECH /mis videos, prueba" in r
     # todo ':' (p. ej. la unidad C: de Windows) va escapado; sin escapar rompe el filtro de subtítulos
     assert ":" not in r.replace("\\:", "")
+
+
+def test_titulos_nunca_sobre_la_cara():
+    # cabeza arriba (presentador de pie): el gancho baja; cabeza al centro: el gancho se queda arriba
+    pz = lambda cab: {"o0": 0.0, "o1": 5.0, "camara": {"cabeza": cab}}
+    arriba = {"piezas": [pz([150, 600])], "broll": []}
+    assert subtitulos.y_libre(arriba, 0, 3, 260, [280, 700, 960]) == 700
+    centro = {"piezas": [pz([600, 1000])], "broll": []}
+    assert subtitulos.y_libre(centro, 0, 3, 260, [280, 700, 960]) == 280
+    # con B-roll a pantalla completa no hay cara que esquivar
+    tapada = {"piezas": [pz([150, 600])], "broll": [{"t0": 0.0, "dur": 5.0, "archivo": "x.mp4"}]}
+    assert subtitulos.y_libre(tapada, 1, 3, 260, [280, 700, 960]) == 280

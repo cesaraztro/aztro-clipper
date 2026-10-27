@@ -61,6 +61,22 @@ def cmd_select(a):
         print(f"Instrucciones para el agente: {select.instrucciones(ep)}")
 
 
+def cmd_broll(a):
+    from . import broll
+    ep = _ep(a)
+    sel = config.leer(ep.ruta("05_select", "seleccion.json"))
+    if a.clips:
+        sel["clips"] = [c for c in sel["clips"] if c["id"] in a.clips]
+    destino = ep.ruta("05_select", "broll_candidatos.jpg")
+    n = broll.hoja_candidatos(sel, destino)
+    if not n:
+        print("Ningún clip pide B-roll (o falta PEXELS_API_KEY).")
+        return
+    print(f"{n} búsquedas → {destino}\n"
+          "Mira la hoja. En cada B-roll de seleccion.json fija \"pexels_id\" con el video que de verdad ilustra la "
+          "frase, cambia \"buscar\" y vuelve a correr este comando, o quita el B-roll si ninguno encaja.")
+
+
 def cmd_plan(a):
     from .etapas import plan
     plan.correr(_ep(a), solo=a.clips)
@@ -168,6 +184,7 @@ def main(argv=None):
     s.add_argument("--forzar", action="store_true")
     s = ep_cmd("select", "Prepara, valida o resuelve (LLM) la selección de clips", cmd_select, clips=False)
     s.add_argument("--validar", action="store_true"); s.add_argument("--llm", action="store_true")
+    ep_cmd("broll", "Hoja de candidatos de B-roll (Pexels) para revisar y fijar pexels_id", cmd_broll)
     ep_cmd("plan", "Convierte la selección en recetas de montaje (clip.json)", cmd_plan)
     ep_cmd("reframe", "Encuadre vertical siguiendo a quien habla", cmd_reframe)
     s = ep_cmd("render", "Renderiza los clips", cmd_render); s.add_argument("--forzar", action="store_true")

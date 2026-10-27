@@ -38,6 +38,123 @@ def _cascadas():
     return cv2.FaceDetectorYN.create(str(modelo_yunet()), "", (320, 320), 0.45, 0.3, 50)  # 0.45: también perfiles
 
 
+# Modo escenario (conferencia, clase, live con público): una sola voz, muchas caras y un video ya editado con varias
+# cámaras. El presentador suele estar de perfil o de espaldas, así que se busca a la PERSONA (cuerpo), no la cara:
+# es la más alta en cuadro (de pie y más cerca de la cámara). Detector: YOLOX-S de OpenCV Zoo (Apache-2.0), 36 MB.
+YOLOX_URL = "https://github.com/opencv/opencv_zoo/raw/main/models/object_detection_yolox/object_detection_yolox_2022nov.onnx"
+CADA_CUERPO = 4  # cuerpos cada 4 cuadros de análisis (2 por segundo)
+
+
+def modelo_yolox():
+    destino = config.datos_dir() / "modelos" / "object_detection_yolox_2022nov.onnx"
+    if not destino.exists():
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        print("  descargando detector de personas YOLOX (OpenCV Zoo, 36 MB)…")
+        tmp = destino.with_suffix(".part")
+        urllib.request.urlretrieve(YOLOX_URL, tmp)
+        tmp.replace(destino)
+    return destino
+
+
+class DetectorPersonas:
+    def __init__(self):
+        self.net = cv2.dnn.readNet(str(modelo_yolox()))
+        g, s = [], []
+        for st in (8, 16, 32):
+            n = 640 // st
+            yv, xv = np.meshgrid(np.arange(n), np.arange(n), indexing="ij")
+            g.append(np.stack((xv, yv), 2).reshape(-1, 2))
+            s.append(np.full((n * n, 1), st))
+        self.grid, self.paso = np.concatenate(g).astype(np.float32), np.concatenate(s).astype(np.float32)
+
+    def detectar(self, gris):
+        """Personas (x, y, w, h) en coordenadas del cuadro de análisis."""
+        h, w = gris.shape
+        r = min(640 / h, 640 / w)
+        lienzo = np.full((640, 640, 3), 114, np.uint8)
+        lienzo[:int(h * r), :int(w * r)] = cv2.resize(cv2.cvtColor(gris, cv2.COLOR_GRAY2BGR), (int(w * r), int(h * r)))
+        self.net.setInput(cv2.dnn.blobFromImage(lienzo))
+        o = self.net.forward()[0]
+        xy, wh = (o[:, :2] + self.grid) * self.paso / r, np.exp(o[:, 2:4]) * self.paso / r
+        score = o[:, 4] * o[:, 5]  # clase 0 de COCO = persona
+        m = score > 0.35
+        cajas = [[float(x - a / 2), float(y - b / 2), float(a), float(b)] for (x, y), (a, b) in zip(xy[m], wh[m])]
+        keep = cv2.dnn.NMSBoxes(cajas, score[m].tolist(), 0.35, 0.45) if cajas else []
+        return [cajas[i] for i in np.array(keep).flatten()]
+
+
+def cortes_de_camara(cuadros):
+    """Índices de cuadro donde el video original cambia de toma (edición multicámara)."""
+    if len(cuadros) < 2:
+        return []
+    chicos = np.array([cv2.resize(g, (64, 36), interpolation=cv2.INTER_AREA) for g in cuadros]).astype(np.int16)
+    dif = np.abs(np.diff(chicos, axis=0)).mean(axis=(1, 2))
+    return [i + 1 for i, d in enumerate(dif) if d > 22]
+
+
+def seguir_presentador(cuadros, detector, cortes):
+    """{cuadro: (cx, arriba, alto)} del presentador: la persona más alta, con continuidad dentro de cada toma."""
+    out, prev, cortes = {}, None, set(cortes)
+    for i in range(0, len(cuadros), CADA_CUERPO):
+        if any(c in cortes for c in range(i - CADA_CUERPO + 1, i + 1)):
+            prev = None  # toma nueva: se vuelve a elegir sin arrastrar la anterior
+        cajas = detector.detectar(cuadros[i])
+        if not cajas:
+            continue
+        alto_max = max(c[3] for c in cajas)
+        candidatas = [c for c in cajas if c[3] >= 0.7 * alto_max]
+        if prev is not None:
+            elegida = min(candidatas, key=lambda c: abs(c[0] + c[2] / 2 - prev))
+        else:
+            elegida = max(candidatas, key=lambda c: c[3])
+        if elegida[3] < 0.25 * cuadros.shape[1]:
+            continue  # nadie de pie en cuadro (plano del público o de la pantalla)
+        prev = elegida[0] + elegida[2] / 2
+        out[i] = (prev, elegida[1], elegida[3])
+    return out
+
+
+def camara_escenario(muestras, cortes, i0, i1, info, mj, escala, extra=1.0):
+    """Recorte 9:16 que sigue al presentador (cuerpo) con paneo suave y salto seco en cada cambio de toma."""
+    sw, sh = info["w"], info["h"]
+    bw, bh = (sh * 9 / 16, sh) if sw / sh > 9 / 16 else (sw, sw * 16 / 9)
+    ks = sorted(k for k in muestras if i0 - 2 <= k <= i1 + 2)
+    if not ks:  # sin muestra en el tramo: la más cercana dentro de 1 s
+        cerca = [k for k in muestras if abs(k - (i0 + i1) / 2) <= FPS_ANALISIS]
+        ks = [min(cerca, key=lambda k: abs(k - (i0 + i1) / 2))] if cerca else []
+    if not ks:
+        return None
+    # zoom moderado: el cuerpo ocupa ~80 % del alto y nunca más de 1.4x (un video editado ya trae sus planos cerrados)
+    zmax = min(mj["zoom_max"], mj.get("zoom_escenario", 1.4), max(1.0, sw / (W * 0.55)))
+    # el plano más abierto del tramo manda (si cambia de toma a la mitad, nadie queda cortado)
+    z = min(float(np.clip(bh * 0.8 / (muestras[k][2] * escala), 1.0, zmax)) for k in ks)
+    arribas = [muestras[k][1] * escala for k in ks]
+    if min(arribas) < 0.05 * sh:
+        z = 1.0  # la cabeza ya toca el borde del plano original: acercar la cortaría
+    else:
+        z = min(z * extra, zmax)
+    cw, ch = bw / z, bh / z
+    arriba = float(np.median(arribas))
+    y = float(np.clip(arriba - 0.08 * ch, 0, sh - ch))
+    xs = [float(np.clip(muestras[k][0] * escala - cw / 2, 0, sw - cw)) for k in ks]
+    x = float(np.median(xs))
+    cam = {"x": round(x), "y": round(y), "w": int(cw) // 2 * 2, "h": int(ch) // 2 * 2, "z": round(z, 3),
+           "fx": 0.5, "fy": 0.2,
+           # cabeza ≈ el 22 % superior de la caja de la persona; unión de todas las muestras del tramo
+           "cabeza": _en_salida(min(arribas), max(muestras[k][1] * escala + 0.22 * muestras[k][2] * escala for k in ks), y, ch)}
+    if len(ks) >= 2 and max(xs) - min(xs) > 0.04 * sw:
+        keys = []
+        for (ka, xa), (kb, xb) in zip(zip(ks, xs), zip(ks[1:], xs[1:])):
+            keys.append([round((ka - i0) / FPS_ANALISIS, 2), round(xa)])
+            corte = next((c for c in sorted(cortes) if ka < c <= kb), None)
+            if corte is not None:  # cambio de toma: salto seco, no paneo
+                t = (corte - i0) / FPS_ANALISIS
+                keys += [[round(t - 0.02, 2), round(xa)], [round(t, 2), round(xb)]]
+        keys.append([round((ks[-1] - i0) / FPS_ANALISIS, 2), round(xs[-1])])
+        cam["x_keys"] = keys
+    return cam
+
+
 def leer_cuadros(ruta, t0, dur, info):
     """Cuadros en gris (ANCHO_ANALISIS de ancho) del tramo [t0, t0+dur] del archivo original."""
     alto = int(round(ANCHO_ANALISIS * info["h"] / info["w"] / 2)) * 2
@@ -133,6 +250,13 @@ def seguir(persona, personas, dets, i0, i1):
                 ruta=ruta)
 
 
+def _en_salida(src0, src1, y, ch):
+    """Franja vertical del original [src0, src1] en píxeles del video final (0–1920), con margen para punch-ins."""
+    a, b = (src0 - y) / ch * H, (src1 - y) / ch * H
+    m = 0.06 * (b - a) + 20
+    return [int(max(0, a - m)), int(min(H, b + m))]
+
+
 def camara_para(persona, info, mj, escala, extra=1.0):
     """Recorte 9:16 en píxeles del original con la cara a la altura y tamaño de la marca ('extra' = más cerrado)."""
     sw, sh = info["w"], info["h"]
@@ -150,6 +274,8 @@ def camara_para(persona, info, mj, escala, extra=1.0):
     y = float(np.clip(cy - mj["cara_altura"] * ch, 0, sh - ch)) if (persona and not persona.get("perdida")) else (sh - ch) / 2
     cam = {"x": round(x), "y": round(y), "w": int(cw) // 2 * 2, "h": int(ch) // 2 * 2, "z": round(z, 3),
            "fx": round((cx - x) / cw, 4), "fy": round((cy - y) / ch, 4)}
+    if persona is not None and not persona.get("perdida"):
+        cam["cabeza"] = _en_salida(cy - 0.7 * cara_h, cy + 0.8 * cara_h, y, ch)
     ruta = (persona or {}).get("ruta") or []
     if len(ruta) >= 2:
         xs = [float(np.clip(c * escala - cw / 2, 0, sw - cw)) for _, c in ruta]
@@ -164,7 +290,9 @@ def correr(ep, solo=None):
     en = Energia(ep.ruta("00_ingest", "voz16k.wav"))
     diar = diarize.correr(ep)
     detector = _cascadas()
+    cuerpos = None
     mj = ep.marca["montaje"]
+    un_hablante = int(ep.meta.get("hablantes") or 1) == 1
     # 1) análisis por clip: caras, movimiento de boca y voz de cada tramo
     analisis = []
     for cp in ep.clips():
@@ -179,6 +307,14 @@ def correr(ep, solo=None):
         dets = detectar(cuadros, detector)
         personas = agrupar_personas(dets, len(cuadros), ANCHO_ANALISIS)
         clip["_dets"] = dets
+        # una sola voz y varias caras por cuadro (público) = conferencia: se sigue el cuerpo del presentador
+        caras_por_cuadro = len(dets) / max(1, (len(cuadros) + 1) // 2)
+        if ep.meta.get("encuadre") == "escenario" or (un_hablante and caras_por_cuadro >= 2.0 and ep.meta.get("encuadre") != "caras"):
+            cuerpos = cuerpos or DetectorPersonas()
+            cortes = cortes_de_camara(cuadros)
+            clip["_esc"] = (seguir_presentador(cuadros, cuerpos, cortes), cortes)
+            analisis.append((cp, clip, info, [], cuadros[len(cuadros) // 2] if len(cuadros) else None, t_a))
+            continue
         act = actividad_boca(cuadros, personas) if len(personas) > 1 else None
         for pz in piezas:
             pz["_voz"] = diarize.voces_en(diar, pz["s0"], pz["s1"]) if diar["k"] > 1 else np.ones(1)
@@ -216,6 +352,9 @@ def correr(ep, solo=None):
     for cp, clip, info, personas, cuadro, t_a in analisis:
         piezas = clip["piezas"]
         escala = info["w"] / ANCHO_ANALISIS
+        if "_esc" in clip:
+            _camaras_escenario(cp, clip, info, mj, escala, t_a, cuadro)
+            continue
         # quién habla: la voz manda; donde no hay evidencia (tramos de medio segundo) se hereda del vecino
         for pz in piezas:
             voz, boca = pz.pop("_voz"), pz.pop("_boca", None)
@@ -261,6 +400,40 @@ def correr(ep, solo=None):
         cambios = sum(1 for a, b in zip(piezas, piezas[1:]) if a.get("hablante") != b.get("hablante"))
         hablan = sorted({p["hablante"] + 1 for p in piezas if p.get("hablante") is not None})
         print(f"  clip {clip['id']}: {len(personas)} persona(s) · habla persona {hablan} · {cambios} cambios · zoom {piezas[0]['camara']['z']}x")
+
+
+def _camaras_escenario(cp, clip, info, mj, escala, t_a, cuadro):
+    muestras, cortes = clip.pop("_esc")
+    clip.pop("_dets", None)
+    piezas = clip["piezas"]
+    toma, inicio_toma, cerrado, abiertos = 0, 0.0, False, 0
+    for k, pz in enumerate(piezas):
+        if k > 0 and pz["o0"] - inicio_toma >= 3.0:
+            toma, inicio_toma, cerrado = toma + 1, pz["o0"], not cerrado
+        i0, i1 = (pz["s0"] - t_a) * FPS_ANALISIS, (pz["s1"] - t_a) * FPS_ANALISIS
+        cam = camara_escenario(muestras, cortes, i0, i1, info, mj, escala, mj["alterno"] if cerrado else 1.0)
+        pz["hablante"] = 0
+        pz["toma"] = toma
+        if cam is None:  # nadie de pie en cuadro: el plano completo con fondo desenfocado
+            pz["camara"], pz["modo"] = camara_para(None, info, mj, escala), "GENERAL"
+            abiertos += 1
+        else:
+            pz["camara"], pz["modo"] = cam, "ESCENARIO"
+    clip["personas"] = []
+    config.escribir(cp, clip)
+    if cuadro is not None:
+        img = cv2.cvtColor(cuadro, cv2.COLOR_GRAY2BGR)
+        k = min(muestras, key=lambda k: abs(k - len(muestras) * CADA_CUERPO / 2), default=None)
+        if k is not None:
+            cx, arriba, alto = muestras[k]
+            cv2.rectangle(img, (int(cx - alto * 0.25), int(arriba)), (int(cx + alto * 0.25), int(arriba + alto)), (80, 200, 255), 2)
+        cam = next((p["camara"] for p in piezas if p["modo"] == "ESCENARIO"), None)
+        if cam:
+            cv2.rectangle(img, (int(cam["x"] / escala), int(cam["y"] / escala)),
+                          (int((cam["x"] + cam["w"]) / escala), int((cam["y"] + cam["h"]) / escala)), (120, 255, 120), 1)
+        cv2.imwrite(str(cp.parent / "reframe.jpg"), img)
+    print(f"  clip {clip['id']}: escenario · presentador en {len(muestras)} muestras · {len(cortes)} cambios de toma · "
+          f"{abiertos} tramos en plano completo · zoom {piezas[0]['camara']['z']}x")
 
 
 def _vista(cuadros, personas, piezas, t_a, escala, destino):

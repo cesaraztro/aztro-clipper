@@ -25,8 +25,12 @@ Los episodios viven en `~/AztroClipper/episodios/<fecha>_<slug>/` y las marcas e
    - Cada clip abre con gancho, se entiende solo y dura lo que pide la marca. Dos clips no cuentan lo mismo.
    - Una sola `palabra_cta` para todo el episodio.
    Luego `clipper select <episodio> --validar` y corrige hasta 0 errores.
+   Después `clipper broll <episodio>`: abre `05_select/broll_candidatos.jpg` y fija `"pexels_id"` en cada B-roll
+   con el video que de verdad ilustra la frase (o quítalo). Nunca produzcas con B-roll sin revisar.
 5. **Producir.** `clipper run <episodio>` (receta → encuadre → render → control de calidad → entregables).
-6. **Revisar.** Abre `clips/<id>/hoja.jpg` y `reframe.jpg`. Si puedes lanzar subagentes, usa la skill
+6. **Revisar.** Abre `clips/<id>/hoja.jpg` y `reframe.jpg`. Ningún texto debe tapar una cara y el zoom no debe cortar la cabeza;
+   en conferencias con público el encuadre sigue el cuerpo del presentador (modo escenario, automático).
+   Si puedes lanzar subagentes, usa la skill
    `aztro-clipper-revisor` con contexto limpio. Ajusta `seleccion.json` y vuelve a correr `clipper run` si hace falta
    (el render reutiliza lo que no cambió).
 7. **Entregar.** Muestra una tabla: clip, título, duración, score, QA, y la ruta `entregables/`. Cada carpeta trae

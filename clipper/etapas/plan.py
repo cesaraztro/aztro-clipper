@@ -22,6 +22,10 @@ def piezas_de(palabras, todas, en, mj, dur_src):
         if hueco:  # Whisper a veces inventa pausas: solo se parte si de verdad hay silencio
             a_, b_ = run[-1]["t1"] - 0.05, w["t0"] + 0.05
             hueco = any(en.quieto(a_ + i * 0.01, a_ + i * 0.01 + 0.1) for i in range(max(0, int((b_ - a_ - 0.1) * 100)) + 1))
+            # palabras que Whisper no escribió ("actuando [de forma] automática"): si el hueco es casi todo voz, no
+            # es pausa y cortarlo deja palabras mochas
+            if hueco and _voz_en(en, run[-1]["t1"] + 0.03, w["t0"] - 0.03) > 0.25:
+                hueco = False
         if hueco or w["gi"] != run[-1]["gi"] + 1:  # salto de oración omitida = corte obligado
             piezas.append(run); run = []
         run.append(w)
@@ -65,6 +69,11 @@ def piezas_de(palabras, todas, en, mj, dur_src):
     return out
 
 
+def _voz_en(en, a, b):
+    """Segundos con voz clara dentro de [a, b]."""
+    return sum(1 for i in range(max(0, int((b - a) * 100))) if en.nivel(a + i * 0.01) >= en.umbral + 6) * 0.01
+
+
 def _afinar(en, t, a, b):
     if b <= a:
         return t
@@ -87,9 +96,12 @@ def quitar_pausas(piezas, en, mj):
             mid = (w["t0"] + w["t1"]) / 2
             j_ = max(range(len(segs)), key=lambda j: (tras[j], -min(abs(mid - segs[j][0]), abs(mid - segs[j][1]))))
             asign[j_].append(w)
-        for (b0, b1), ws in zip(segs, asign):
+        propias = len(nuevas)
+        for j, ((b0, b1), ws) in enumerate(zip(segs, asign)):
             if ws and b1 - b0 > 0.08:
                 nuevas.append({"palabras": ws, "s0": b0, "s1": b1})
+            elif not ws and 0 < j < len(segs) - 1 and len(nuevas) > propias and _voz_en(en, b0, b1) > 0.2:
+                nuevas[-1]["s1"] = b1  # voz sin transcribir entre dos silencios: se queda pegada al tramo anterior
     fus = []
     for pz in nuevas:
         hueco_voz = pz["palabras"][0]["t0"] - fus[-1]["palabras"][-1]["t1"] if fus else 0
@@ -201,7 +213,8 @@ def eventos_motion(c, salida, total, cta_t0, mo):
         dur = min(mo["broll_dur"], cta_t0 - 0.3 - t0)
         if dur < 1.2 or any(abs(t0 - x["t0"]) < mo["broll_sep"] for x in broll):
             continue
-        broll.append({"t0": round(t0, 3), "dur": round(dur, 3), "buscar": b["buscar"], "palabra": b.get("palabra")})
+        broll.append({"t0": round(t0, 3), "dur": round(dur, 3), "buscar": b["buscar"], "palabra": b.get("palabra"),
+                      "pexels_id": b.get("pexels_id")})
         ocupado.append((t0 - 0.3, t0 + dur + 0.3))
     pedidas = c.get("tarjetas") or c.get("enfasis", [])
     cand = []

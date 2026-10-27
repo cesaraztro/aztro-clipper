@@ -6,6 +6,7 @@
 | NumPy | Energía de voz, sincronía, diarización | BSD-3 |
 | OpenCV (opencv-python-headless) | Lectura de cuadros y detector de caras | Apache-2.0 |
 | YuNet (OpenCV Zoo) | Modelo de detección de caras, se descarga en el primer uso | MIT |
+| YOLOX-S (OpenCV Zoo) | Detección de personas para conferencias (modo escenario), se descarga cuando hace falta | Apache-2.0 |
 | mlx-whisper | Transcripción en Mac | MIT |
 | faster-whisper | Transcripción en Windows/Linux | MIT |
 | Whisper large-v3-turbo (OpenAI) | Modelo de transcripción | MIT |

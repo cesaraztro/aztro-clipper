@@ -21,6 +21,27 @@ def _escape(s):
     return s.replace("\\", "").replace("{", "(").replace("}", ")")
 
 
+def caras_en(clip, t0, t1):
+    """Franjas verticales (px del video final) donde hay una cabeza entre t0 y t1; el B-roll a pantalla completa las tapa."""
+    br = [(b["t0"], b["t0"] + b["dur"]) for b in clip.get("broll", []) if b.get("archivo")]
+    out = []
+    for pz in clip.get("piezas", []):
+        a, b = max(pz["o0"], t0), min(pz["o1"], t1)
+        if b <= a or any(x <= a and b <= y for x, y in br):
+            continue
+        cab = (pz.get("camara") or {}).get("cabeza")
+        if cab:
+            out.append(cab)
+    return out
+
+
+def y_libre(clip, t0, t1, alto, opciones):
+    """Primer borde superior de 'opciones' cuya caja [y, y+alto] no toca ninguna cara; si todas chocan, la que menos."""
+    caras = caras_en(clip, t0, t1)
+    choque = lambda y: sum(max(0, min(y + alto, c1) - max(y, c0)) for c0, c1 in caras)
+    return min(opciones, key=lambda y: (choque(y), opciones.index(y)))
+
+
 CTA_TEXTOS = {
     "general": ("Comenta", "{P}", "y te mando el video completo"),
     "tiktok": ("Escríbeme", "{P}", "por DM y te mando el video completo"),
@@ -71,8 +92,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             ev.append(f"Dialogue: 0,{ass_t(t0)},{ass_t(t1)},Sub,,0,0,0,,{pop}{' '.join(partes)}")
     g = clip.get("gancho_overlay")
     if g and g.get("texto"):
+        # nunca sobre la cara: arriba si la cabeza está abajo, si no a media pantalla (sobre el pecho)
+        lineas = 1 + len(g["texto"]) * gc["tam"] * 0.62 // (W - 180)
+        y = y_libre(clip, g["t0"], g["t0"] + g["dur"], int(lineas * gc["tam"] * 1.3 + 50), [gc["y"], 700, 960])
         ev.append(f"Dialogue: 1,{ass_t(g['t0'])},{ass_t(g['t0'] + g['dur'])},Gancho,,0,0,0,,"
-                  f"{{\\fad(150,250)\\fscx70\\fscy70\\t(0,180,\\fscx104\\fscy104)\\t(180,280,\\fscx100\\fscy100)}}{_escape(g['texto'].upper())}")
+                  f"{{\\an8\\pos({W // 2},{y})\\fad(150,250)\\fscx70\\fscy70\\t(0,180,\\fscx104\\fscy104)"
+                  f"\\t(180,280,\\fscx100\\fscy100)}}{_escape(g['texto'].upper())}")
     mo = marca.get("motion", {})
     # barra de progreso arriba: se llena durante todo el clip (retención: "ya casi acaba")
     if mo.get("barra", True) and clip.get("dur"):
@@ -85,7 +110,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     # palabras clave: entran con rebote y salen rápido (motion graphic sobre la palabra que se está diciendo)
     for tj in clip.get("tarjetas", []):
         t0, t1 = tj["t0"], tj["t0"] + tj["dur"]
-        y = mo.get("tarjeta_y", 1180)
+        y0 = mo.get("tarjeta_y", 1180)
+        y = y_libre(clip, t0, t1, 190, [y0 - 95, 880, 560]) + 95  # \pos es el centro de la tarjeta
         ev.append(f"Dialogue: 4,{ass_t(t0)},{ass_t(t1)},Tarjeta,,0,0,0,,"
                   f"{{\\pos({W // 2},{y})\\frz-3\\fad(60,140)\\fscx30\\fscy30\\t(0,140,\\fscx115\\fscy115)"
                   f"\\t(140,260,\\fscx100\\fscy100\\frz0)}}{_escape(tj['texto'])}")
@@ -98,12 +124,16 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         rol = f"\\N{{\\fs40\\b0\\1c{enf}}}{_escape(fi['rol'])}" if fi.get("rol") else ""
         ev.append(f"Dialogue: 4,{ass_t(a0)},{ass_t(a1)},Firma,,0,0,0,,"
                   f"{{\\an1\\move(-420,{y},70,{y},0,260)\\fad(0,200)}}{_escape(fi['nombre'])}{rol}")
+    cta_pos = ""
+    if cta.get("dur"):  # el bloque del CTA (~310 px) termina en 1260 o, si ahí hay cara, más arriba/abajo
+        base = y_libre(clip, cta["t0"], clip.get("dur", cta["t0"] + cta["dur"]), 310, [950, 640, 380]) + 310
+        cta_pos = f"\\an2\\pos({W // 2},{base})"
     if cta.get("modo") == "seguir" and cta.get("dur"):
         # sin link largo ni ManyChat: el cierre invita a seguir la cuenta (no promete nada que no se entregue)
         a, b, c = marca["cta"]["seguir"]
         txt = f"{{\\fs62}}{_escape(a)}\\N{{\\fs110\\1c{enf}}}{_escape(b)}" + (f"\\N{{\\fs44\\1c{blanco}}}{_escape(c)}" if c else "")
         ev.append(f"Dialogue: 2,{ass_t(cta['t0'])},{ass_t(clip['dur'] + 0.5)},CTA,,0,0,0,,"
-                  f"{{\\fad(150,0)\\fscx60\\fscy60\\t(0,200,\\fscx106\\fscy106)\\t(200,320,\\fscx100\\fscy100)}}{txt}")
+                  f"{{{cta_pos}\\fad(150,0)\\fscx60\\fscy60\\t(0,200,\\fscx106\\fscy106)\\t(200,320,\\fscx100\\fscy100)}}{txt}")
     elif cta.get("palabra") and cta.get("dur"):
         a, b, c = CTA_TEXTOS.get(red, CTA_TEXTOS["general"])
         p = cta["palabra"]
@@ -112,6 +142,6 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         txt = f"{{\\fs62}}{a}\\N{grande}{_escape(linea2)}" + (f"\\N{{\\fs44\\1c{blanco}}}{_escape(c)}" if c else "")
         t0 = cta["t0"]
         ev.append(f"Dialogue: 2,{ass_t(t0)},{ass_t(clip['dur'] + 0.5)},CTA,,0,0,0,,"
-                  f"{{\\fad(150,0)\\fscx60\\fscy60\\t(0,200,\\fscx106\\fscy106)\\t(200,320,\\fscx100\\fscy100)}}{txt}")
+                  f"{{{cta_pos}\\fad(150,0)\\fscx60\\fscy60\\t(0,200,\\fscx106\\fscy106)\\t(200,320,\\fscx100\\fscy100)}}{txt}")
     Path(ruta).write_text(head + "\n".join(ev) + "\n", encoding="utf-8")
     return ruta

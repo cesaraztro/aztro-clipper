@@ -83,6 +83,25 @@ class DetectorPersonas:
         return [cajas[i] for i in np.array(keep).flatten()]
 
 
+def es_escenario(ep, detector, muestras=24):
+    """¿Conferencia con público? Una sola voz y, en promedio, 2+ caras por cuadro a lo largo de todo el video.
+    Se decide una vez por episodio: clip por clip falla cuando el público casi no sale en ese tramo."""
+    if ep.meta.get("encuadre") in ("escenario", "caras"):
+        return ep.meta["encuadre"] == "escenario"
+    if int(ep.meta.get("hablantes") or 1) != 1:
+        return False
+    caras = []
+    for k in range(muestras):
+        t = ep.meta["dur"] * (k + 0.5) / muestras
+        f, local = resolver(ep.meta, t)
+        cuadros, _ = leer_cuadros(f["ruta"], local, 0.13, f["info"])
+        if len(cuadros):
+            detector.setInputSize((cuadros.shape[2], cuadros.shape[1]))
+            _, d = detector.detect(cv2.cvtColor(cuadros[0], cv2.COLOR_GRAY2BGR))
+            caras.append(0 if d is None else len(d))
+    return bool(caras) and float(np.mean(caras)) >= 1.8
+
+
 def cortes_de_camara(cuadros):
     """Índices de cuadro donde el video original cambia de toma (edición multicámara)."""
     if len(cuadros) < 2:
@@ -292,7 +311,9 @@ def correr(ep, solo=None):
     detector = _cascadas()
     cuerpos = None
     mj = ep.marca["montaje"]
-    un_hablante = int(ep.meta.get("hablantes") or 1) == 1
+    escenario = es_escenario(ep, detector)
+    if escenario:
+        print("  modo escenario: una voz con público en cuadro, la cámara sigue el cuerpo del presentador")
     # 1) análisis por clip: caras, movimiento de boca y voz de cada tramo
     analisis = []
     for cp in ep.clips():
@@ -307,9 +328,7 @@ def correr(ep, solo=None):
         dets = detectar(cuadros, detector)
         personas = agrupar_personas(dets, len(cuadros), ANCHO_ANALISIS)
         clip["_dets"] = dets
-        # una sola voz y varias caras por cuadro (público) = conferencia: se sigue el cuerpo del presentador
-        caras_por_cuadro = len(dets) / max(1, (len(cuadros) + 1) // 2)
-        if ep.meta.get("encuadre") == "escenario" or (un_hablante and caras_por_cuadro >= 2.0 and ep.meta.get("encuadre") != "caras"):
+        if escenario:  # conferencia: se sigue el cuerpo del presentador
             cuerpos = cuerpos or DetectorPersonas()
             cortes = cortes_de_camara(cuadros)
             clip["_esc"] = (seguir_presentador(cuadros, cuerpos, cortes), cortes)

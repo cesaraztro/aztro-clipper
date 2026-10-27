@@ -51,12 +51,21 @@ def piezas_de(palabras, todas, en, mj, dur_src):
         s0 = max(0.0, a_ - 0.05)
         # el último tramo deja una cola para que el clip no termine en seco, pero nunca entra a la palabra siguiente
         s1 = min(dur_src, b_ + (0.45 if k == len(piezas) - 1 else 0.08), next_t0 - 0.06)
-        while s1 - 0.01 > w1["t1"] and max(en.nivel(s1 - x * 0.01) for x in range(3)) >= en.umbral:
-            s1 = round(s1 - 0.01, 2)  # nunca cerrar cuando ya arranca otro sonido
+        # nunca cerrar cuando ya arranca otro sonido: el corte va al último silencio real antes de él, con margen
+        # para el redondeo a cuadros. Si no hay silencio, es la cola de la misma palabra y no se recorta.
+        def _quieto(t):
+            return max(en.nivel(t + x * 0.01) for x in range(-2, 5)) < en.umbral
+        if not _quieto(s1):
+            quietos = [t for t in (round(w1["t1"] + i * 0.01, 2) for i in range(int((s1 - w1["t1"]) * 100) + 1))
+                       if _quieto(t)]
+            if quietos:
+                s1 = quietos[-1]
         # palabras pegadas (sin silencio entre ellas): el corte va al valle de sonido más cercano, no a ciegas
+        # (Whisper suele cerrar la palabra antes de que acabe su sonido: el valle se busca hasta el siguiente sonido)
         if en.nivel(s1) > en.umbral + 6:
-            cands = [round(w1["t1"] - 0.25 + i * 0.01, 2) for i in range(56)]
-            cands = [t for t in cands if w1["t0"] + 0.1 < t <= next_t0 + 0.12] or [s1]
+            tope = min(_otro_sonido(en, w1["t1"], next_t0 + 0.12) - 0.03, next_t0 + 0.12)
+            cands = [round(w1["t1"] - 0.25 + i * 0.01, 2) for i in range(int((tope - w1["t1"] + 0.25) * 100) + 1)]
+            cands = [t for t in cands if w1["t0"] + 0.1 < t <= tope] or [s1]
             s1 = min(cands, key=lambda t: (round(en.nivel(t)), abs(t - w1["t1"])))
         if en.nivel(s0) > en.umbral + 6:
             cands = [round(w0["t0"] - 0.3 + i * 0.01, 2) for i in range(51)]
@@ -64,9 +73,23 @@ def piezas_de(palabras, todas, en, mj, dur_src):
             s0 = max(0.0, min(cands, key=lambda t: (round(en.nivel(t)), abs(t - w0["t0"]))))
         # ajuste fino: entrada y salida al punto más silencioso a ±80 ms (si mejora al menos 4 dB)
         s0 = _afinar(en, s0, max(prev_t1 - 0.02, s0 - 0.08), min(w0["t0"] + 0.03, s0 + 0.08))
-        s1 = _afinar(en, s1, max(w1["t1"] - 0.15, s1 - 0.08), s1 + 0.08)
+        # la salida queda a 50 ms del siguiente sonido como mínimo: el redondeo a cuadros la puede correr ~20 ms
+        s1 = _afinar(en, s1, max(w1["t1"] - 0.15, s1 - 0.08), min(s1 + 0.08, _otro_sonido(en, s1, s1 + 0.2) - 0.05))
         out.append({"palabras": ws, "s0": s0, "s1": s1})
     return out
+
+
+def _otro_sonido(en, desde, hasta):
+    """Instante en que, pasado un valle, arranca otro sonido (o 'hasta' si no arranca)."""
+    valle, t = False, desde
+    while t < hasta:
+        n = en.nivel(t)
+        if n < en.umbral + 6:
+            valle = True
+        elif valle and n > en.umbral + 12:
+            return t
+        t = round(t + 0.01, 2)
+    return hasta
 
 
 def _voz_en(en, a, b):
@@ -129,12 +152,24 @@ def corregir(palabras, correcciones):
     return ws
 
 
-def linea_de_tiempo(piezas, vel):
+def linea_de_tiempo(piezas, vel, en=None):
     """Cada tramo dura un número entero de cuadros ya acelerado (sin deriva de audio contra video)."""
     cuadros = 0  # los tiempos de salida salen de cuadros acumulados: cero deriva aunque haya cientos de cortes
     for pz in piezas:
         pz["s0"] = round(pz["s0"], 4)
-        nf = max(1, round((pz["s1"] - pz["s0"]) / vel * FPS))
+        exacto = (pz["s1"] - pz["s0"]) / vel * FPS
+        nf = max(1, round(exacto))
+
+        def ruido(t):
+            return max(en.nivel(t + d) for d in (-0.02, 0, 0.02))
+        if en is not None and ruido(pz["s0"] + nf / FPS * vel) > en.umbral + 6:
+            # el redondeo deja la salida en sonido: se prueba el cuadro vecino o mover la entrada (en silencio)
+            # unos milisegundos para que la salida quede donde se eligió
+            s1 = pz["s1"]
+            opciones = [(pz["s0"], n) for n in {max(1, int(exacto)), max(1, int(exacto) + 1)}]
+            opciones += [(round(s1 - n / FPS * vel, 4), n) for n in {max(1, int(exacto)), max(1, int(exacto) + 1)}]
+            pz["s0"], nf = min(opciones, key=lambda o: (round(max(ruido(o[0]), ruido(o[0] + o[1] / FPS * vel))),
+                                                         abs(o[1] - exacto)))
         pz["nf"] = nf
         pz["s1"] = round(pz["s0"] + nf / FPS * vel, 4)
         pz["o0"] = round(cuadros / FPS, 6)
@@ -245,7 +280,7 @@ def construir_clip(ep, c, ors, todas, en, vel):
     piezas = quitar_pausas(piezas, en, mj)
     for pz in piezas:
         pz["palabras"] = corregir(pz["palabras"], ep.marca.get("correcciones", {}))
-    total = linea_de_tiempo(piezas, vel)
+    total = linea_de_tiempo(piezas, vel, en)
     enfasis = {config.norm(x) for x in c.get("enfasis", [])}
     salida = []
     for k, pz in enumerate(piezas):

@@ -116,7 +116,7 @@ clipper publish <episodio> --desde 2026-10-27
 ## Marcas
 
 Cada marca vive en `~/AztroClipper/marcas/<id>/` (fuera del código) con dos archivos:
-- `marca.json`: colores, vocabulario, correcciones, CTA, música, LUT y horarios.
+- `marca.json`: colores, fuentes, logo, vocabulario, correcciones, CTA, música, LUT y horarios. Colores opcionales: `gancho_caja`/`gancho_texto`, `boton`/`boton_texto` y `barra` (degradado de la barra de progreso). `logo` es un PNG con transparencia que aparece en el cierre. `descripcion_youtube` es una lista de líneas fijas (comunidad, web) que se agregan a toda descripción de YouTube.
 - `criterio.md`: qué temas funcionan.
 
 Créala con `clipper marca <id> --nombre "Mi marca"`. Las marcas nunca se suben al repo.
@@ -129,4 +129,4 @@ uv run pytest
 
 ## Licencias
 
-Código propietario para miembros de la comunidad AztroTech. Las dependencias y atribuciones están en `THIRD_PARTY.md`.
+Código abierto bajo licencia [MIT](LICENSE). Las dependencias y atribuciones están en `THIRD_PARTY.md`. El material del demo (`docs/media/`) es de César Holguín / AztroTech y no forma parte de la licencia MIT: solo sirve para mostrar el resultado.

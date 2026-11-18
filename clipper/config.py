@@ -22,8 +22,11 @@ MARCA_BASE = {
     "zona_horaria": "America/Mexico_City",
     "vocabulario": [],
     "correcciones": {},
+    # opcionales: gancho_caja/gancho_texto, boton/boton_texto y barra (lista de colores = degradado de la barra)
     "colores": {"texto": "#FFFFFF", "caja": "#0A1A33", "enfasis": "#D9B26A", "acento": "#A5C8FF"},
     "fuentes": {"subtitulos": "Poppins SemiBold", "titulo": "Poppins ExtraBold"},
+    # logo de la marca en el cierre (PNG con transparencia, relativo a la carpeta de la marca)
+    "logo": {"archivo": None, "ancho": 520, "y": 200},
     "seleccion": {"duracion": [25, 75], "clips_por_hora": [10, 15]},
     "montaje": {
         "velocidad": 1.12, "velocidad_conversacion": 1.06,
@@ -43,9 +46,13 @@ MARCA_BASE = {
         "overlay": "Comenta {PALABRA}",
         "seguir": ["Sígueme", "PARA MÁS IA", ""],
         "seguir_copy": "Sígueme para más contenido de IA para negocios 🚀",
+        "seguir_youtube": "Suscríbete",
+        "cuentas": {},  # cuenta que se muestra en el CTA por variante: {"general": "@marca", "tiktok": "@marca"}
         "dur": 3.2,
     },
     "hashtags": [],
+    # líneas fijas que van en toda descripción de YouTube, antes de los hashtags (comunidad, web, etc.)
+    "descripcion_youtube": [],
     # motion graphics: palabras clave animadas, B-roll, barra de progreso y firma de nombre
     "motion": {"tarjetas_max": 6, "tarjeta_sep": 3.5, "tarjeta_dur": 1.1, "tarjeta_y": 1180,
                "broll_max": 5, "broll_sep": 5.0, "broll_dur": 2.2, "barra": True, "firma_desde": 0.6, "firma_dur": 3.2},
@@ -165,6 +172,14 @@ class Episodio:
         self.dir = p.resolve()
         self.meta = leer(p / "episodio.json")
         self.marca = cargar_marca(self.meta["marca"])
+        # fuente ya editada (pausas fuera, música de fondo): el episodio puede ajustar el montaje de la marca
+        if self.meta.get("montaje"):
+            self.marca["montaje"] = {**self.marca["montaje"], **self.meta["montaje"]}
+        # varias personas en cuadro (podcast, entrevista): un rótulo por quien habla, en orden de voz de diarize
+        if self.meta.get("firmas"):
+            self.marca["firmas"] = self.meta["firmas"]
+            if self.meta.get("firmas_por"):
+                self.marca["firmas_por"] = self.meta["firmas_por"]
 
     def ruta(self, *partes):
         return self.dir.joinpath(*partes)

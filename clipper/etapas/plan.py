@@ -249,11 +249,16 @@ def eventos_motion(c, salida, total, cta_t0, mo):
         if dur < 1.2 or any(abs(t0 - x["t0"]) < mo["broll_sep"] for x in broll):
             continue
         broll.append({"t0": round(t0, 3), "dur": round(dur, 3), "buscar": b["buscar"], "palabra": b.get("palabra"),
-                      "pexels_id": b.get("pexels_id")})
+                      "pexels_id": b.get("pexels_id"), "etiqueta": b.get("etiqueta")})
         ocupado.append((t0 - 0.3, t0 + dur + 0.3))
     pedidas = c.get("tarjetas") or c.get("enfasis", [])
     cand = []
     for p in pedidas:
+        if isinstance(p, dict):  # {"texto": "BUENA DECISIÓN", "palabra": "buena"}: frase anclada a una palabra dicha
+            w = buscar_palabra(p.get("palabra", ""), 1.2)
+            if w:
+                cand.append(dict(w, _texto=p["texto"].upper()))
+            continue
         w = buscar_palabra(p, 1.2)
         if w and len(_limpio(w["texto"])) >= 4:
             cand.append(w)
@@ -263,8 +268,24 @@ def eventos_motion(c, salida, total, cta_t0, mo):
             break
         if any(a <= w["t0"] <= b for a, b in ocupado) or any(w["t0"] - x["t0"] < mo["tarjeta_sep"] for x in tarjetas):
             continue
-        tarjetas.append({"t0": round(w["t0"] - 0.05, 3), "dur": mo["tarjeta_dur"], "texto": _limpio(w["texto"]).upper()})
+        tarjetas.append({"t0": round(w["t0"] - 0.05, 3), "dur": mo["tarjeta_dur"],
+                         "texto": w.get("_texto") or _limpio(w["texto"]).upper()})
     return broll, tarjetas
+
+
+def eventos_emoji(c, salida, cta_t0, broll, dur=1.4, sep=2.5):
+    """Emojis que saltan junto a la palabra que ilustran: [{"t0", "dur", "emoji"}] (fuera del B-roll y del cierre)."""
+    out = []
+    for e in c.get("emojis", []):
+        n = config.norm(e.get("palabra", "").split()[0]) if e.get("palabra") else ""
+        w = next((w for w in salida if w["t0"] >= 1.0 and n and config.norm(w["texto"]) == n), None)
+        if not w or w["t0"] + dur > cta_t0 - 0.2:
+            continue
+        t0 = round(max(0.0, w["t0"] - 0.08), 3)
+        if any(b["t0"] - 0.2 <= t0 <= b["t0"] + b["dur"] for b in broll) or any(abs(t0 - x["t0"]) < sep for x in out):
+            continue
+        out.append({"t0": t0, "dur": dur, "emoji": e["emoji"]})
+    return sorted(out, key=lambda x: x["t0"])
 
 
 def construir_clip(ep, c, ors, todas, en, vel):
@@ -294,6 +315,7 @@ def construir_clip(ep, c, ors, todas, en, vel):
     punch_ins(piezas, salida, mj, total, cta_dur)
     paginas = paginas_subtitulos(salida, total, st)
     broll, tarjetas = eventos_motion(c, salida, total, total - cta_dur, ep.marca["motion"])
+    emojis = eventos_emoji(c, salida, total - cta_dur, broll)
     return {
         "version": 1, "id": c["id"], "marca": ep.marca["id"], "titulo": c["titulo"], "gancho": c["gancho"],
         "hook_tipo": c.get("hook_tipo"), "viral_score": c.get("viral_score"), "razon": c.get("razon"),
@@ -303,8 +325,8 @@ def construir_clip(ep, c, ors, todas, en, vel):
                     "punch": pz.get("punch", []), "texto": " ".join(w["w"] for w in pz["palabras"])} for pz in piezas],
         "palabras": salida, "paginas": paginas,
         "gancho_overlay": {"texto": c["gancho"], "t0": 0.0, "dur": min(ep.marca["gancho"]["dur"], total)},
-        "broll": broll, "tarjetas": tarjetas,
-        "cta": {"modo": ep.meta.get("cta_modo", "palabra"), "palabra": ep.meta.get("palabra_cta"),
+        "broll": broll, "tarjetas": tarjetas, "emojis": emojis,
+        "cta": {"modo": ep.meta.get("cta_modo", "palabra"), "palabra": ep.meta.get("palabra_cta"), "linea": c.get("cta_linea"),
                 "t0": round(total - cta_dur, 3), "dur": round(cta_dur, 3)},
     }
 

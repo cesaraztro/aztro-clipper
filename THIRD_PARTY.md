@@ -11,6 +11,7 @@
 | faster-whisper | Transcripción en Windows/Linux | MIT |
 | Whisper large-v3-turbo (OpenAI) | Modelo de transcripción | MIT |
 | Poppins | Tipografía de subtítulos (`recursos/fuentes`) | SIL Open Font License 1.1 |
+| Manrope | Tipografía de subtítulos (`recursos/fuentes`) | SIL Open Font License 1.1 |
 | Lógica de cortes, energía, subtítulos y punch-ins | Portada del motor de reels v4 de AztroTech | Propia |
 
 Ideas de diseño (sin copiar código): OpenShorts (MIT), Cutawan (MIT), AI-Youtube-Shorts-Generator (MIT), clipify (MIT).

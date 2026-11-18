@@ -54,6 +54,8 @@ def instrucciones(ep):
 
 
 def _velocidad(ep):
+    if ep.meta.get("velocidad"):  # fuente ya editada y acelerada: el episodio fija su propia velocidad
+        return ep.meta["velocidad"]
     mj = ep.marca["montaje"]
     return mj["velocidad_conversacion"] if (ep.meta.get("hablantes") or 1) > 1 else mj["velocidad"]
 

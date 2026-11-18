@@ -327,6 +327,13 @@ def correr(ep, solo=None):
         cuadros, _ = leer_cuadros(f["ruta"], local, t_b - t_a, info)
         dets = detectar(cuadros, detector)
         personas = agrupar_personas(dets, len(cuadros), ANCHO_ANALISIS)
+        k_meta = int(ep.meta.get("hablantes") or 0)
+        if k_meta > 1 and len(personas) > k_meta and len(cuadros):
+            # más caras que hablantes (video multicámara: la misma persona sale en otro lugar en la otra toma):
+            # se descartan primero las caras cortadas en la orilla y luego las de menos soporte
+            ancho_c = cuadros.shape[2]
+            orilla = lambda p: p["cx"] - p["w"] / 2 < 0.01 * ancho_c or p["cx"] + p["w"] / 2 > 0.99 * ancho_c
+            personas = sorted(sorted(personas, key=lambda p: (orilla(p), -p["soporte"]))[:k_meta], key=lambda p: p["cx"])
         clip["_dets"] = dets
         if escenario:  # conferencia: se sigue el cuerpo del presentador
             cuerpos = cuerpos or DetectorPersonas()
@@ -377,6 +384,7 @@ def correr(ep, solo=None):
         # quién habla: la voz manda; donde no hay evidencia (tramos de medio segundo) se hereda del vecino
         for pz in piezas:
             voz, boca = pz.pop("_voz"), pz.pop("_boca", None)
+            pz["voz"] = int(np.argmax(voz)) if voz.sum() > 0.2 and voz.max() >= 0.6 * voz.sum() else None
             if not personas:
                 pz["hablante"] = None
             elif len(personas) == 1:

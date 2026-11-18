@@ -15,7 +15,8 @@ def copy_por_red(ep, clip):
            for red in ("instagram", "facebook", "tiktok", "youtube")}
     if seguir:
         url = None
-    yt_desc = (f"{desc}\n\n▶ Video completo: {url}\n\n{tags}" if url else f"{desc}\n\n👉 {cta['youtube']}\n\n{tags}")
+    fijas = "".join(f"\n\n{linea}" for linea in m.get("descripcion_youtube", []))
+    yt_desc = (f"{desc}\n\n▶ Video completo: {url}" if url else f"{desc}\n\n👉 {cta['youtube']}") + f"{fijas}\n\n{tags}"
     return {
         "instagram": {"texto": f"{desc}\n\n👉 {cta['instagram']}\n\n{tags}"},
         "facebook": {"texto": f"{desc}\n\n👉 {cta['facebook']}"},
